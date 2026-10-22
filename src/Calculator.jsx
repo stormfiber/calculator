@@ -995,6 +995,15 @@ const Calculator = () => {
           padding-right: var(--safe-area-right);
         }
 
+        .calc-panel > * {
+          animation: calc-panel-in 0.18s ease-out;
+        }
+
+        /* Industry-standard calculator button height (56 dp / 3.5 rem) */
+        .calc-key {
+          height: 3.5rem;
+        }
+
         .calc-keypad {
           padding-bottom: calc(var(--safe-area-bottom, 0px) + 0.5rem);
         }
