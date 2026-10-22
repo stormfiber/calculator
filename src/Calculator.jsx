@@ -829,7 +829,7 @@ const Calculator = () => {
               <button
                 key={button.label}
                 onClick={button.action}
-                className="calc-key bg-[var(--md-sys-color-tertiary-container)] text-[var(--md-sys-color-on-tertiary-container)] rounded-xl font-medium text-sm active:scale-95 active:brightness-95 transition-all duration-100"
+                className="calc-key h-14 bg-[var(--md-sys-color-tertiary-container)] text-[var(--md-sys-color-on-tertiary-container)] rounded-xl font-medium text-sm active:scale-95 active:brightness-95 transition-all duration-100"
               >
                 {button.label}
               </button>
@@ -920,47 +920,47 @@ const Calculator = () => {
           onPointerDown={startAcHold}
           onPointerUp={cancelAcHold}
           onPointerLeave={cancelAcHold}
-          className="calc-key bg-[var(--md-sys-color-error-container)] text-[var(--md-sys-color-on-error-container)] rounded-2xl text-xl font-medium active:scale-95 active:brightness-95 transition-all duration-100"
+          className="calc-key h-14 bg-[var(--md-sys-color-error-container)] text-[var(--md-sys-color-on-error-container)] rounded-2xl text-xl font-medium active:scale-95 active:brightness-95 transition-all duration-100"
         >
           AC
         </button>
         <button
           onClick={backspace}
-          className="calc-key bg-[var(--md-sys-color-error-container)] text-[var(--md-sys-color-on-error-container)] rounded-2xl text-xl font-medium active:scale-95 active:brightness-95 transition-all duration-100"
+          className="calc-key h-14 bg-[var(--md-sys-color-error-container)] text-[var(--md-sys-color-on-error-container)] rounded-2xl text-xl font-medium active:scale-95 active:brightness-95 transition-all duration-100"
         >
           <i className="fas fa-backspace"></i>
         </button>
         <button
           onClick={percentage}
-          className="calc-key bg-[var(--md-sys-color-surface-container-high)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-xl font-medium active:scale-95 active:brightness-95 transition-all duration-100"
+          className="calc-key h-14 bg-[var(--md-sys-color-surface-container-high)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-xl font-medium active:scale-95 active:brightness-95 transition-all duration-100"
         >
           %
         </button>
         <button
           onClick={() => appendOperator('/')}
-          className="calc-key bg-[var(--md-sys-color-surface-container-highest)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100"
+          className="calc-key h-14 bg-[var(--md-sys-color-surface-container-highest)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100"
         >
           ÷
         </button>
 
-        <button onClick={() => appendValue('7')} className="calc-key bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">7</button>
-        <button onClick={() => appendValue('8')} className="calc-key bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">8</button>
-        <button onClick={() => appendValue('9')} className="calc-key bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">9</button>
-        <button onClick={() => appendOperator('*')} className="calc-key bg-[var(--md-sys-color-surface-container-highest)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">×</button>
+        <button onClick={() => appendValue('7')} className="calc-key h-14 bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">7</button>
+        <button onClick={() => appendValue('8')} className="calc-key h-14 bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">8</button>
+        <button onClick={() => appendValue('9')} className="calc-key h-14 bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">9</button>
+        <button onClick={() => appendOperator('*')} className="calc-key h-14 bg-[var(--md-sys-color-surface-container-highest)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">×</button>
 
-        <button onClick={() => appendValue('4')} className="calc-key bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">4</button>
-        <button onClick={() => appendValue('5')} className="calc-key bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">5</button>
-        <button onClick={() => appendValue('6')} className="calc-key bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">6</button>
-        <button onClick={() => appendOperator('-')} className="calc-key bg-[var(--md-sys-color-surface-container-highest)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">−</button>
+        <button onClick={() => appendValue('4')} className="calc-key h-14 bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">4</button>
+        <button onClick={() => appendValue('5')} className="calc-key h-14 bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">5</button>
+        <button onClick={() => appendValue('6')} className="calc-key h-14 bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">6</button>
+        <button onClick={() => appendOperator('-')} className="calc-key h-14 bg-[var(--md-sys-color-surface-container-highest)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">−</button>
 
-        <button onClick={() => appendValue('1')} className="calc-key bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">1</button>
-        <button onClick={() => appendValue('2')} className="calc-key bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">2</button>
-        <button onClick={() => appendValue('3')} className="calc-key bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">3</button>
-        <button onClick={() => appendOperator('+')} className="calc-key bg-[var(--md-sys-color-surface-container-highest)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">+</button>
+        <button onClick={() => appendValue('1')} className="calc-key h-14 bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">1</button>
+        <button onClick={() => appendValue('2')} className="calc-key h-14 bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">2</button>
+        <button onClick={() => appendValue('3')} className="calc-key h-14 bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">3</button>
+        <button onClick={() => appendOperator('+')} className="calc-key h-14 bg-[var(--md-sys-color-surface-container-highest)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">+</button>
 
-        <button onClick={() => appendValue('0')} className="calc-key col-span-2 bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">0</button>
-        <button onClick={() => appendValue('.')} className="calc-key bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">.</button>
-        <button onClick={calculate} className="calc-key bg-[var(--md-sys-color-primary)] text-[var(--md-sys-color-on-primary)] rounded-2xl text-2xl font-medium active:scale-95 active:brightness-95 transition-all duration-100">=</button>
+        <button onClick={() => appendValue('0')} className="calc-key h-14 col-span-2 bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">0</button>
+        <button onClick={() => appendValue('.')} className="calc-key h-14 bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">.</button>
+        <button onClick={calculate} className="calc-key h-14 bg-[var(--md-sys-color-primary)] text-[var(--md-sys-color-on-primary)] rounded-2xl text-2xl font-medium active:scale-95 active:brightness-95 transition-all duration-100">=</button>
       </div>
 
       <style>{`
