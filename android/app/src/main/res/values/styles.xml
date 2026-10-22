@@ -10,18 +10,20 @@
     </style>
 
     <!-- The web app draws itself edge to edge, the system bars stay transparent
-         so that the gradient of the app continues behind them. -->
-    <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
+         so that the background of the app continues behind them. -->
+    <style name="AppTheme.NoActionBar.Base" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowLightNavigationBar">false</item>
     </style>
 
+    <!-- Used by the Capacitor bridge activity. -->
+    <style name="AppTheme.NoActionBar" parent="AppTheme.NoActionBar.Base" />
 
+    <!-- Splash screen, shown while the web app is starting up. -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
         <item name="windowSplashScreenBackground">@color/colorPrimary</item>

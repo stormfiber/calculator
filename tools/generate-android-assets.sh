@@ -26,12 +26,31 @@ for density in "${!DENSITIES[@]}"; do
   out_dir="$RES_DIR/mipmap-$density"
   mkdir -p "$out_dir"
 
-  brand_draw_icon "$out_dir/ic_launcher.png" "$size"
+  # Legacy launcher icons must not fill the whole square: the artwork is
+  # inset and the corners are transparent (see the launcher icon guidelines).
+  margin=$(( size * 8 / 100 ))
+  inner=$(( size - margin * 2 ))
+  radius=$(( inner * 22 / 100 ))
 
-  # round variant: same artwork on a circular mask
-  magick -size "${size}x${size}" xc:none -fill white -draw "circle $((size/2)),$((size/2)) $((size/2)),0" "$TMP_DIR/mask.png"
-  magick "$TMP_DIR/bg.png" "$TMP_DIR/glyph.png" -composite -resize "${size}x${size}" "$TMP_DIR/round_src.png"
-  magick "$TMP_DIR/round_src.png" "$TMP_DIR/mask.png" -alpha off -compose CopyOpacity -composite "$out_dir/ic_launcher_round.png"
+  brand_draw_icon "$TMP_DIR/art.png" "$inner"
+
+  # rounded square mask
+  magick -size "${size}x${size}" xc:none -fill white \
+    -draw "roundrectangle ${margin},${margin} $((size - margin - 1)),$((size - margin - 1)) ${radius},${radius}" \
+    "$TMP_DIR/square_mask.png"
+
+  # circular mask
+  magick -size "${size}x${size}" xc:none -fill white \
+    -draw "circle $((size / 2)),$((size / 2)) $((size / 2)),${margin}" \
+    "$TMP_DIR/circle_mask.png"
+
+  magick "$TMP_DIR/art.png" -background none -gravity center -extent "${size}x${size}" "$TMP_DIR/art_centered.png"
+
+  magick "$TMP_DIR/art_centered.png" "$TMP_DIR/square_mask.png" \
+    -alpha off -compose CopyOpacity -composite "$out_dir/ic_launcher.png"
+
+  magick "$TMP_DIR/art_centered.png" "$TMP_DIR/circle_mask.png" \
+    -alpha off -compose CopyOpacity -composite "$out_dir/ic_launcher_round.png"
 
   # adaptive icon foreground (glyph only, transparent background).
   # The glyph is scaled down so that it stays inside the 66dp safe zone that

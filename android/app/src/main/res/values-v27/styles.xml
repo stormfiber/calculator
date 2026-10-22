@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The navigation bar icons are only available from API 27 on -->
+    <style name="AppTheme.NoActionBar" parent="AppTheme.NoActionBar.Base">
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>

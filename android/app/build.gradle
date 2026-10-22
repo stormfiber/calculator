@@ -54,6 +54,16 @@ android {
         sourceCompatibility JavaVersion.VERSION_21
         targetCompatibility JavaVersion.VERSION_21
     }
+
+    lint {
+        // The Gradle version is pinned on purpose: F-Droid only accepts the
+        // wrapper versions from its own checksum list, and 8.14.3 is the
+        // highest one that is allowed there.
+        disable 'AndroidGradlePluginVersion'
+        abortOnError = true
+        warningsAsErrors = true
+        lintConfig = file('lint.xml')
+    }
 }
 
 dependencies {

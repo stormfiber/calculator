@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Resources that are referenced by the Capacitor library. Without this file
+  the resource shrinker would remove them.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@style/AppTheme_NoActionBar" />

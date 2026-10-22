@@ -6,7 +6,32 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
+  quality:
+    name: Lint and test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
   build:
     name: Build web app and debug APK
     runs-on: ubuntu-latest
@@ -57,6 +82,10 @@ jobs:
       - name: Build debug APK
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
+
+      - name: Run Android lint
+        working-directory: android
+        run: ./gradlew lintRelease --no-daemon
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4

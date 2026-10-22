@@ -1,4 +1,4 @@
-import { evaluateExpression, formatNumber, performCalculation, getOperatorSymbol } from './Calculator';
+import { evaluateExpression, formatNumber, performCalculation, getOperatorSymbol } from './Calculator.jsx';
 
 describe('evaluateExpression', () => {
   it('evaluates plain numbers', () => {

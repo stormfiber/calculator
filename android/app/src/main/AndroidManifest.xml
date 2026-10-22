@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Permissions -->
+
+    <!-- Required by the Capacitor bridge to serve the bundled web app from https://localhost -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Required for the haptic feedback of the keypad (navigator.vibrate) -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -35,10 +42,4 @@
         </provider>
     </application>
 
-    <!-- Permissions -->
-
-    <!-- Required by the Capacitor bridge to serve the bundled web app from https://localhost -->
-    <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Required for the haptic feedback of the keypad (navigator.vibrate) -->
-    <uses-permission android:name="android.permission.VIBRATE" />
 </manifest>

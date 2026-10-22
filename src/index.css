@@ -1,6 +1,13 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/*
+ * Tailwind CSS 4.
+ *
+ * The sources are declared explicitly so that the generated CSS only contains
+ * the utilities that are really used - the committed web build inside
+ * android/ would otherwise be picked up as well.
+ */
+@import "tailwindcss" source(none);
+@source "./**/*.{js,jsx}";
+@source "../index.html";
 
 /*
  * Material 3 color roles.

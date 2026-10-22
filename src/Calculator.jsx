@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 /* -------------------------------------------------------------------------- */
 /* Storage                                                                    */
@@ -23,7 +23,7 @@ const safeLocalStorage = {
   getItem(key) {
     try {
       return typeof Storage !== 'undefined' && localStorage ? localStorage.getItem(key) : null;
-    } catch (error) {
+    } catch {
       return null;
     }
   },
@@ -32,7 +32,7 @@ const safeLocalStorage = {
       if (typeof Storage !== 'undefined' && localStorage) {
         localStorage.setItem(key, value);
       }
-    } catch (error) {
+    } catch {
       // Silently fail if localStorage is not available
     }
   }
@@ -295,6 +295,45 @@ function evaluateExpression(input) {
   return result;
 }
 
+/**
+ * Reads the stored history. Returns an empty list when nothing is stored or
+ * when the stored value is corrupted.
+ */
+function loadStoredHistory() {
+  const stored = safeLocalStorage.getItem(STORAGE_KEYS.history);
+  if (!stored) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(stored);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Reads the stored settings and merges them with the defaults.
+ */
+function loadStoredSettings() {
+  const stored = safeLocalStorage.getItem(STORAGE_KEYS.settings);
+  if (!stored) {
+    return DEFAULT_SETTINGS;
+  }
+
+  try {
+    const parsed = JSON.parse(stored) || {};
+    return {
+      sound: parsed.sound !== false,
+      vibration: parsed.vibration !== false,
+      history: parsed.history !== false
+    };
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
 /* -------------------------------------------------------------------------- */
 /* Formatting                                                                 */
 /* -------------------------------------------------------------------------- */
@@ -354,41 +393,13 @@ const Calculator = () => {
   const [previousValue, setPreviousValue] = useState('');
   const [operation, setOperation] = useState(null);
   const [waitingForOperand, setWaitingForOperand] = useState(false);
-  const [history, setHistory] = useState([]);
+  const [history, setHistory] = useState(loadStoredHistory);
   const [activeMode, setActiveMode] = useState('basic');
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState(loadStoredSettings);
 
   /* ---------------------------------------------------------------------- */
   /* Persistence                                                            */
   /* ---------------------------------------------------------------------- */
-
-  // Load saved data on mount
-  useEffect(() => {
-    const savedHistory = safeLocalStorage.getItem(STORAGE_KEYS.history);
-    const savedSettings = safeLocalStorage.getItem(STORAGE_KEYS.settings);
-
-    if (savedHistory) {
-      try {
-        const parsedHistory = JSON.parse(savedHistory);
-        setHistory(Array.isArray(parsedHistory) ? parsedHistory : []);
-      } catch (error) {
-        setHistory([]);
-      }
-    }
-
-    if (savedSettings) {
-      try {
-        const parsedSettings = JSON.parse(savedSettings) || {};
-        setSettings({
-          sound: parsedSettings.sound !== false,
-          vibration: parsedSettings.vibration !== false,
-          history: parsedSettings.history !== false
-        });
-      } catch (error) {
-        // Keep the default settings
-      }
-    }
-  }, []);
 
   // Save history whenever it changes
   useEffect(() => {
@@ -439,7 +450,7 @@ const Calculator = () => {
 
         oscillator.start(audioContext.currentTime);
         oscillator.stop(audioContext.currentTime + 0.15);
-      } catch (error) {
+      } catch {
         // Audio is optional, ignore every failure
       }
     },
@@ -555,7 +566,7 @@ const Calculator = () => {
       setPreviousValue('');
       setOperation(null);
       setWaitingForOperand(true);
-    } catch (error) {
+    } catch {
       setDisplay('Error');
       setTimeout(() => {
         clearAll();
@@ -609,7 +620,7 @@ const Calculator = () => {
 
     try {
       setDisplay(String(factorial(value)));
-    } catch (error) {
+    } catch {
       setDisplay('Error');
       setTimeout(() => {
         clearAll();
@@ -814,7 +825,7 @@ const Calculator = () => {
               { label: '|x|', action: () => appendFunction('abs(') },
               { label: 'x!', action: factorialResult },
               { label: '%', action: percentage }
-            ].map((button, index) => (
+            ].map((button) => (
               <button
                 key={button.label}
                 onClick={button.action}
@@ -851,10 +862,11 @@ const Calculator = () => {
             ) : (
               <div className="space-y-1.5">
                 {history.map((item, index) => (
-                  <div
+                  <button
+                    type="button"
                     key={`${item.timestamp}-${index}`}
                     onClick={() => loadFromHistory(item.result)}
-                    className="p-2.5 bg-[var(--md-sys-color-surface-container-high)] rounded-xl cursor-pointer active:bg-[var(--md-sys-color-surface-container-highest)] transition-all duration-150"
+                    className="block w-full text-left p-2.5 bg-[var(--md-sys-color-surface-container-high)] rounded-xl cursor-pointer active:bg-[var(--md-sys-color-surface-container-highest)] transition-all duration-150"
                   >
                     <div className="text-[var(--md-sys-color-on-surface)] font-medium text-sm truncate">
                       {item.expression} = {formatNumber(item.result)}
@@ -862,7 +874,7 @@ const Calculator = () => {
                     <div className="text-[var(--md-sys-color-on-surface-variant)] text-xs mt-0.5">
                       {item.timestamp}
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
