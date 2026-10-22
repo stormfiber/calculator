@@ -1,0 +1,17 @@
+CalculatorPro is a fast, free and completely offline scientific calculator.
+
+Features:
+
+* Basic and scientific modes
+* sin, cos, tan, log, ln, square root, x squared, x to the y, pi, e, absolute value, factorial and percent
+* Calculation history that is stored on your device and can be restored with a single tap
+* Optional key press sounds and haptic feedback
+* Long press AC clears the whole calculation at once
+* A polished material design interface with a gradient theme
+* Works completely offline - no ads, no tracking, no account required
+* Keyboard support on tablets and Chromebooks
+
+CalculatorPro is free and open source software, licensed under the MIT license.
+
+The interface follows the Material Design 3 guidelines and adapts to the light and
+dark theme of the device.

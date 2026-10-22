@@ -1,0 +1,13 @@
+{
+  "appId": "com.stormfiber.calculator",
+  "appName": "CalculatorPro",
+  "webDir": "build",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#4f46e5",
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
+  }
+}

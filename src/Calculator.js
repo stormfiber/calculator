@@ -1,4 +1,353 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+
+/* -------------------------------------------------------------------------- */
+/* Storage                                                                    */
+/* -------------------------------------------------------------------------- */
+
+const STORAGE_KEYS = {
+  history: 'calcPro_history',
+  settings: 'calcPro_settings'
+};
+
+const DEFAULT_SETTINGS = {
+  sound: true,
+  vibration: true,
+  history: true
+};
+
+/**
+ * localStorage can throw (private mode, disabled storage, quota). Every access
+ * is guarded so that the calculator keeps working.
+ */
+const safeLocalStorage = {
+  getItem(key) {
+    try {
+      return typeof Storage !== 'undefined' && localStorage ? localStorage.getItem(key) : null;
+    } catch (error) {
+      return null;
+    }
+  },
+  setItem(key, value) {
+    try {
+      if (typeof Storage !== 'undefined' && localStorage) {
+        localStorage.setItem(key, value);
+      }
+    } catch (error) {
+      // Silently fail if localStorage is not available
+    }
+  }
+};
+
+/* -------------------------------------------------------------------------- */
+/* Expression evaluation                                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The calculator evaluates the expression that is shown in the display. The
+ * expression is parsed and evaluated by the small recursive descent parser
+ * below - using `eval()` or the `Function` constructor would allow arbitrary
+ * code execution inside the WebView.
+ */
+const EXPRESSION_FUNCTIONS = {
+  sin: Math.sin,
+  cos: Math.cos,
+  tan: Math.tan,
+  log: (value) => Math.log10(value),
+  ln: Math.log,
+  sqrt: Math.sqrt,
+  abs: Math.abs
+};
+
+const EXPRESSION_CONSTANTS = {
+  pi: Math.PI,
+  'π': Math.PI,
+  e: Math.E
+};
+
+const OPERATOR_SYMBOLS = {
+  '+': '+',
+  '-': '−',
+  '*': '×',
+  '/': '÷',
+  '**': '^'
+};
+
+class ExpressionError extends Error {}
+
+function factorial(value) {
+  if (!Number.isInteger(value) || value < 0 || value > 170) {
+    throw new ExpressionError('Invalid factorial');
+  }
+
+  let result = 1;
+  for (let i = 2; i <= value; i += 1) {
+    result *= i;
+  }
+  return result;
+}
+
+function tokenize(input) {
+  const tokens = [];
+  let index = 0;
+
+  while (index < input.length) {
+    const char = input[index];
+
+    if (char === ' ') {
+      index += 1;
+      continue;
+    }
+
+    // numbers
+    if ((char >= '0' && char <= '9') || (char === '.' && /[0-9]/.test(input[index + 1] || ''))) {
+      let end = index;
+      while (end < input.length && /[0-9.]/.test(input[end])) {
+        end += 1;
+      }
+      const value = Number.parseFloat(input.slice(index, end));
+      if (Number.isNaN(value)) {
+        throw new ExpressionError('Invalid number');
+      }
+      tokens.push({ type: 'number', value });
+      index = end;
+      continue;
+    }
+
+    // identifiers (functions and constants)
+    if (/[a-zA-Zπ]/.test(char)) {
+      let end = index;
+      while (end < input.length && /[a-zA-Zπ]/.test(input[end])) {
+        end += 1;
+      }
+      tokens.push({ type: 'identifier', value: input.slice(index, end).toLowerCase() });
+      index = end;
+      continue;
+    }
+
+    // operators
+    if ('+-*/^()!%'.includes(char)) {
+      tokens.push({ type: 'operator', value: char });
+      index += 1;
+      continue;
+    }
+
+    throw new ExpressionError(`Unexpected character "${char}"`);
+  }
+
+  return tokens;
+}
+
+/**
+ * Evaluates a mathematical expression such as "2π", "sin(45)" or "3^2+1".
+ *
+ * Supported: numbers, + - * / ^, unary +/-, parentheses, implicit
+ * multiplication, the constants π and e, the functions sin, cos, tan, log,
+ * ln, sqrt and abs as well as the postfix factorial operator.
+ */
+function evaluateExpression(input) {
+  const tokens = tokenize(input);
+  let position = 0;
+
+  const peek = () => tokens[position];
+  const consume = () => tokens[position++];
+
+  const parseExpression = () => {
+    let left = parseTerm();
+
+    for (;;) {
+      const token = peek();
+      if (!token || token.type !== 'operator' || (token.value !== '+' && token.value !== '-')) {
+        return left;
+      }
+      consume();
+      const right = parseTerm();
+      left = token.value === '+' ? left + right : left - right;
+    }
+  };
+
+  const parseTerm = () => {
+    let left = parseFactor();
+
+    for (;;) {
+      const token = peek();
+      if (!token) {
+        return left;
+      }
+
+      if (token.type === 'operator' && (token.value === '*' || token.value === '/')) {
+        consume();
+        const right = parseFactor();
+        left = token.value === '*' ? left * right : left / right;
+        continue;
+      }
+
+      // implicit multiplication, for example 2π, 3(4+5) or 2e
+      const startsValue =
+        token.type === 'number' ||
+        token.type === 'identifier' ||
+        (token.type === 'operator' && token.value === '(');
+
+      if (!startsValue) {
+        return left;
+      }
+
+      left *= parseFactor();
+    }
+  };
+
+  const parseFactor = () => {
+    const token = peek();
+
+    if (token && token.type === 'operator' && (token.value === '+' || token.value === '-')) {
+      consume();
+      const value = parseFactor();
+      return token.value === '-' ? -value : value;
+    }
+
+    return parsePower();
+  };
+
+  const parsePower = () => {
+    const base = parsePostfix();
+    const token = peek();
+
+    if (token && token.type === 'operator' && token.value === '^') {
+      consume();
+      return Math.pow(base, parseFactor());
+    }
+
+    return base;
+  };
+
+  const parsePostfix = () => {
+    let value = parsePrimary();
+
+    while (peek() && peek().type === 'operator' && peek().value === '!') {
+      consume();
+      value = factorial(value);
+    }
+
+    return value;
+  };
+
+  const parsePrimary = () => {
+    const token = consume();
+
+    if (!token) {
+      throw new ExpressionError('Unexpected end of expression');
+    }
+
+    if (token.type === 'number') {
+      return token.value;
+    }
+
+    if (token.type === 'identifier') {
+      if (Object.prototype.hasOwnProperty.call(EXPRESSION_CONSTANTS, token.value)) {
+        return EXPRESSION_CONSTANTS[token.value];
+      }
+
+      if (Object.prototype.hasOwnProperty.call(EXPRESSION_FUNCTIONS, token.value)) {
+        const open = peek();
+        if (!open || open.type !== 'operator' || open.value !== '(') {
+          throw new ExpressionError(`"${token.value}" needs brackets`);
+        }
+        consume();
+
+        const argument = parseExpression();
+
+        const close = peek();
+        if (!close || close.type !== 'operator' || close.value !== ')') {
+          throw new ExpressionError('Missing closing bracket');
+        }
+        consume();
+
+        return EXPRESSION_FUNCTIONS[token.value](argument);
+      }
+
+      throw new ExpressionError(`Unknown name "${token.value}"`);
+    }
+
+    if (token.type === 'operator' && token.value === '(') {
+      const value = parseExpression();
+
+      const close = peek();
+      if (!close || close.type !== 'operator' || close.value !== ')') {
+        throw new ExpressionError('Missing closing bracket');
+      }
+      consume();
+
+      return value;
+    }
+
+    throw new ExpressionError(`Unexpected "${token.value}"`);
+  };
+
+  const result = parseExpression();
+
+  if (position !== tokens.length) {
+    throw new ExpressionError('Unexpected token');
+  }
+
+  if (!Number.isFinite(result)) {
+    throw new ExpressionError('Invalid calculation');
+  }
+
+  return result;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Formatting                                                                 */
+/* -------------------------------------------------------------------------- */
+
+function formatNumber(value) {
+  if (typeof value !== 'string') {
+    value = String(value);
+  }
+
+  if (value === 'Error' || value === 'Infinity' || value === '-Infinity' || Number.isNaN(Number(value))) {
+    return value;
+  }
+
+  const num = Number.parseFloat(value);
+
+  if (Math.abs(num) >= 1e15 || (Math.abs(num) < 1e-6 && num !== 0)) {
+    return num.toExponential(6);
+  }
+
+  if (value.includes('.')) {
+    return num.toLocaleString('en-US', {
+      maximumFractionDigits: 10,
+      useGrouping: false
+    });
+  }
+
+  return num.toLocaleString('en-US', { useGrouping: false });
+}
+
+function performCalculation(operator, firstOperand, secondOperand) {
+  switch (operator) {
+    case '+':
+      return firstOperand + secondOperand;
+    case '-':
+      return firstOperand - secondOperand;
+    case '*':
+      return firstOperand * secondOperand;
+    case '/':
+      return firstOperand / secondOperand;
+    case '**':
+      return Math.pow(firstOperand, secondOperand);
+    default:
+      return secondOperand;
+  }
+}
+
+function getOperatorSymbol(operator) {
+  return OPERATOR_SYMBOLS[operator] || operator;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Component                                                                  */
+/* -------------------------------------------------------------------------- */
 
 const Calculator = () => {
   const [display, setDisplay] = useState('0');
@@ -7,227 +356,199 @@ const Calculator = () => {
   const [waitingForOperand, setWaitingForOperand] = useState(false);
   const [history, setHistory] = useState([]);
   const [activeMode, setActiveMode] = useState('basic');
-  const [settings, setSettings] = useState({
-    sound: true,
-    vibration: true,
-    history: true,
-    theme: true
-  });
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
 
-  // Safe localStorage operations
-  const safeLocalStorage = {
-    getItem: (key) => {
-      try {
-        return typeof Storage !== 'undefined' && localStorage ? localStorage.getItem(key) : null;
-      } catch (e) {
-        return null;
-      }
-    },
-    setItem: (key, value) => {
-      try {
-        if (typeof Storage !== 'undefined' && localStorage) {
-          localStorage.setItem(key, value);
-        }
-      } catch (e) {
-        // Silently fail if localStorage is not available
-      }
-    }
-  };
+  /* ---------------------------------------------------------------------- */
+  /* Persistence                                                            */
+  /* ---------------------------------------------------------------------- */
 
   // Load saved data on mount
   useEffect(() => {
-    const savedHistory = safeLocalStorage.getItem('calcPro_history');
-    const savedSettings = safeLocalStorage.getItem('calcPro_settings');
-    
+    const savedHistory = safeLocalStorage.getItem(STORAGE_KEYS.history);
+    const savedSettings = safeLocalStorage.getItem(STORAGE_KEYS.settings);
+
     if (savedHistory) {
       try {
         const parsedHistory = JSON.parse(savedHistory);
         setHistory(Array.isArray(parsedHistory) ? parsedHistory : []);
-      } catch (e) {
+      } catch (error) {
         setHistory([]);
       }
     }
-    
+
     if (savedSettings) {
       try {
-        const parsedSettings = JSON.parse(savedSettings);
+        const parsedSettings = JSON.parse(savedSettings) || {};
         setSettings({
-          sound: true,
-          vibration: true,
-          history: true,
-          theme: true,
-          ...parsedSettings
+          sound: parsedSettings.sound !== false,
+          vibration: parsedSettings.vibration !== false,
+          history: parsedSettings.history !== false
         });
-      } catch (e) {
-        // Keep default settings
+      } catch (error) {
+        // Keep the default settings
       }
     }
   }, []);
 
-  // Save history whenever it changes (but not on initial load)
+  // Save history whenever it changes
   useEffect(() => {
-    if (history.length > 0) {
-      safeLocalStorage.setItem('calcPro_history', JSON.stringify(history));
-    }
+    safeLocalStorage.setItem(STORAGE_KEYS.history, JSON.stringify(history));
   }, [history]);
 
   // Save settings whenever they change
   useEffect(() => {
-    safeLocalStorage.setItem('calcPro_settings', JSON.stringify(settings));
+    safeLocalStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(settings));
   }, [settings]);
 
-  const playSound = useCallback((type) => {
-    if (!settings.sound) return;
-    
-    try {
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      const frequencies = {
-        number: 800,
-        operator: 600,
-        equals: 1000,
-        clear: 400,
-        click: 700
-      };
-      
-      oscillator.frequency.setValueAtTime(frequencies[type] || 700, audioContext.currentTime);
-      oscillator.type = 'sine';
-      
-      gainNode.gain.setValueAtTime(0.05, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.15);
-      
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.15);
-    } catch (e) {}
-  }, [settings.sound]);
+  /* ---------------------------------------------------------------------- */
+  /* Feedback                                                               */
+  /* ---------------------------------------------------------------------- */
+
+  const playSound = useCallback(
+    (type) => {
+      if (!settings.sound) {
+        return;
+      }
+
+      try {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) {
+          return;
+        }
+
+        const audioContext = new AudioContextClass();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        const frequencies = {
+          number: 800,
+          operator: 600,
+          equals: 1000,
+          clear: 400,
+          click: 700
+        };
+
+        oscillator.frequency.setValueAtTime(frequencies[type] || 700, audioContext.currentTime);
+        oscillator.type = 'sine';
+
+        gainNode.gain.setValueAtTime(0.05, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.15);
+
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.15);
+      } catch (error) {
+        // Audio is optional, ignore every failure
+      }
+    },
+    [settings.sound]
+  );
 
   const vibrate = useCallback(() => {
-    if (settings.vibration && 'vibrate' in navigator) {
+    if (settings.vibration && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       navigator.vibrate(30);
     }
   }, [settings.vibration]);
 
-  const formatNumber = (value) => {
-    if (typeof value !== 'string') value = String(value);
-    
-    if (value === 'Error' || value === 'Infinity' || value === '-Infinity' || isNaN(value)) {
-      return value;
-    }
-    
-    const num = parseFloat(value);
-    
-    if (Math.abs(num) >= 1e15 || (Math.abs(num) < 1e-6 && num !== 0)) {
-      return num.toExponential(6);
-    }
-    
-    if (value.includes('.')) {
-      return parseFloat(value).toLocaleString('en-US', {
-        maximumFractionDigits: 10,
-        useGrouping: false
-      });
-    }
-    
-    return num.toLocaleString('en-US', { useGrouping: false });
-  };
+  /* ---------------------------------------------------------------------- */
+  /* Calculation                                                            */
+  /* ---------------------------------------------------------------------- */
 
-  const appendValue = (value) => {
-    playSound('number');
-    vibrate();
+  const addToHistory = useCallback((expression, result) => {
+    const historyItem = {
+      expression,
+      result: String(result),
+      timestamp: new Date().toLocaleString()
+    };
 
-    if (waitingForOperand) {
-      setDisplay(value);
-      setWaitingForOperand(false);
-    } else {
-      if (display === '0' && value !== '.') {
-        setDisplay(value);
-      } else {
-        if (value === '.' && display.includes('.')) {
-          return;
+    setHistory((previous) => [historyItem, ...previous.slice(0, 49)]);
+  }, []);
+
+  const appendValue = useCallback(
+    (value) => {
+      playSound('number');
+      vibrate();
+
+      setDisplay((current) => {
+        if (waitingForOperand) {
+          setWaitingForOperand(false);
+          return value;
         }
-        setDisplay(display + value);
+
+        if (current === '0' && value !== '.') {
+          return value;
+        }
+
+        if (value === '.' && current.includes('.')) {
+          return current;
+        }
+
+        return current + value;
+      });
+    },
+    [playSound, vibrate, waitingForOperand]
+  );
+
+  const appendOperator = useCallback(
+    (nextOperator) => {
+      playSound('operator');
+      vibrate();
+
+      const inputValue = Number.parseFloat(display);
+
+      if (previousValue === '') {
+        setPreviousValue(inputValue);
+      } else if (operation) {
+        const currentValue = previousValue || 0;
+        const result = performCalculation(operation, currentValue, inputValue);
+
+        setDisplay(String(result));
+        setPreviousValue(result);
       }
-    }
-  };
 
-  const appendOperator = (nextOperator) => {
-    playSound('operator');
+      setWaitingForOperand(true);
+      setOperation(nextOperator);
+    },
+    [display, operation, playSound, previousValue, vibrate]
+  );
+
+  const clearAll = useCallback(() => {
+    playSound('clear');
     vibrate();
+    setDisplay('0');
+    setPreviousValue('');
+    setOperation(null);
+    setWaitingForOperand(false);
+  }, [playSound, vibrate]);
 
-    const inputValue = parseFloat(display);
-
-    if (previousValue === '') {
-      setPreviousValue(inputValue);
-    } else if (operation) {
-      const currentValue = previousValue || 0;
-      const result = performCalculation(operation, currentValue, inputValue);
-
-      setDisplay(String(result));
-      setPreviousValue(result);
-    }
-
-    setWaitingForOperand(true);
-    setOperation(nextOperator);
-  };
-
-  const performCalculation = (operator, firstOperand, secondOperand) => {
-    switch (operator) {
-      case '+':
-        return firstOperand + secondOperand;
-      case '-':
-        return firstOperand - secondOperand;
-      case '*':
-        return firstOperand * secondOperand;
-      case '/':
-        return firstOperand / secondOperand;
-      case '**':
-        return Math.pow(firstOperand, secondOperand);
-      default:
-        return secondOperand;
-    }
-  };
-
-  const calculate = () => {
+  const calculate = useCallback(() => {
     playSound('equals');
     vibrate();
 
     try {
       let result;
-      
+
       if (operation && previousValue !== '') {
-        result = performCalculation(operation, previousValue, parseFloat(display));
-        
+        result = performCalculation(operation, previousValue, Number.parseFloat(display));
+
         if (settings.history) {
-          addToHistory(`${formatNumber(previousValue)} ${getOperatorSymbol(operation)} ${formatNumber(display)}`, result);
+          addToHistory(
+            `${formatNumber(previousValue)} ${getOperatorSymbol(operation)} ${formatNumber(display)}`,
+            result
+          );
         }
       } else {
-        let expression = display;
-        
-        // Handle scientific expressions
-        expression = expression.replace(/π/g, Math.PI);
-        expression = expression.replace(/e/g, Math.E);
-        expression = expression.replace(/sin\(/g, 'Math.sin(');
-        expression = expression.replace(/cos\(/g, 'Math.cos(');
-        expression = expression.replace(/tan\(/g, 'Math.tan(');
-        expression = expression.replace(/log\(/g, 'Math.log10(');
-        expression = expression.replace(/ln\(/g, 'Math.log(');
-        expression = expression.replace(/sqrt\(/g, 'Math.sqrt(');
-        expression = expression.replace(/abs\(/g, 'Math.abs(');
-        expression = expression.replace(/\^/g, '**');
+        result = evaluateExpression(display);
 
-        result = Function('"use strict"; return (' + expression + ')')();
-        
-        if (settings.history && expression !== display) {
+        if (settings.history && display !== String(result)) {
           addToHistory(display, result);
         }
       }
 
-      if (isNaN(result) || !isFinite(result)) {
-        throw new Error('Invalid calculation');
+      if (!Number.isFinite(result)) {
+        throw new ExpressionError('Invalid calculation');
       }
 
       setDisplay(String(result));
@@ -240,383 +561,474 @@ const Calculator = () => {
         clearAll();
       }, 1500);
     }
-  };
+  }, [addToHistory, clearAll, display, operation, playSound, previousValue, settings.history, vibrate]);
 
-  const getOperatorSymbol = (op) => {
-    const symbols = { '+': '+', '-': '−', '*': '×', '/': '÷', '**': '^' };
-    return symbols[op] || op;
-  };
-
-  const addToHistory = (expression, result) => {
-    const historyItem = {
-      expression,
-      result: String(result),
-      timestamp: new Date().toLocaleString()
-    };
-    
-    setHistory(prev => [historyItem, ...prev.slice(0, 49)]);
-  };
-
-  const clearAll = () => {
+  const backspace = useCallback(() => {
     playSound('clear');
     vibrate();
-    setDisplay('0');
-    setPreviousValue('');
-    setOperation(null);
-    setWaitingForOperand(false);
-  };
 
-  const backspace = () => {
-    playSound('clear');
-    vibrate();
-    
-    if (display.length > 1 && display !== 'Error') {
-      setDisplay(display.slice(0, -1));
-    } else {
-      setDisplay('0');
-    }
-  };
+    setDisplay((current) => {
+      if (current.length > 1 && current !== 'Error') {
+        return current.slice(0, -1);
+      }
+      return '0';
+    });
+  }, [playSound, vibrate]);
 
-  const appendFunction = (func) => {
-    playSound('number');
-    vibrate();
-    
-    if (waitingForOperand || display === '0') {
-      setDisplay(func);
-      setWaitingForOperand(false);
-    } else {
-      setDisplay(display + func);
-    }
-  };
+  const appendFunction = useCallback(
+    (func) => {
+      playSound('number');
+      vibrate();
 
-  const power = () => {
-    const value = parseFloat(display);
+      setDisplay((current) => {
+        if (waitingForOperand || current === '0') {
+          setWaitingForOperand(false);
+          return func;
+        }
+        return current + func;
+      });
+    },
+    [playSound, vibrate, waitingForOperand]
+  );
+
+  const power = useCallback(() => {
+    const value = Number.parseFloat(display);
     setDisplay(String(value * value));
-  };
+  }, [display]);
 
-  const factorial = () => {
-    const num = parseInt(display);
-    
-    if (num < 0 || num > 170 || !Number.isInteger(parseFloat(display))) {
+  const factorialResult = useCallback(() => {
+    const value = Number.parseInt(display, 10);
+
+    if (Number.isNaN(value) || value < 0 || value > 170 || !Number.isInteger(Number.parseFloat(display))) {
       setDisplay('Error');
-      setTimeout(() => clearAll(), 1500);
+      setTimeout(() => {
+        clearAll();
+      }, 1500);
       return;
     }
-    
-    let result = 1;
-    for (let i = 2; i <= num; i++) {
-      result *= i;
+
+    try {
+      setDisplay(String(factorial(value)));
+    } catch (error) {
+      setDisplay('Error');
+      setTimeout(() => {
+        clearAll();
+      }, 1500);
     }
-    
-    setDisplay(String(result));
-  };
+  }, [clearAll, display]);
 
-  const percentage = () => {
-    const value = parseFloat(display);
+  const percentage = useCallback(() => {
+    const value = Number.parseFloat(display);
     setDisplay(String(value / 100));
-  };
+  }, [display]);
 
-  const toggleSetting = (setting) => {
-    setSettings(prev => ({
-      ...prev,
-      [setting]: !prev[setting]
-    }));
-    playSound('click');
-  };
+  /* ---------------------------------------------------------------------- */
+  /* Settings and history                                                   */
+  /* ---------------------------------------------------------------------- */
 
-  const loadFromHistory = (result) => {
+  const toggleSetting = useCallback(
+    (setting) => {
+      setSettings((previous) => ({
+        ...previous,
+        [setting]: !previous[setting]
+      }));
+      playSound('click');
+    },
+    [playSound]
+  );
+
+  const clearHistory = useCallback(() => {
+    setHistory([]);
+    playSound('clear');
+    vibrate();
+  }, [playSound, vibrate]);
+
+  const loadFromHistory = useCallback((result) => {
     setDisplay(result);
     setActiveMode('basic');
-  };
+  }, []);
 
-  // Keyboard event handler
+  /* ---------------------------------------------------------------------- */
+  /* Long press on AC clears the whole calculation                          */
+  /* ---------------------------------------------------------------------- */
+
+  const acHoldTimer = useRef(null);
+
+  const startAcHold = useCallback(() => {
+    acHoldTimer.current = setTimeout(() => {
+      clearAll();
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate(50);
+      }
+    }, 600);
+  }, [clearAll]);
+
+  const cancelAcHold = useCallback(() => {
+    if (acHoldTimer.current) {
+      clearTimeout(acHoldTimer.current);
+      acHoldTimer.current = null;
+    }
+  }, []);
+
+  useEffect(() => cancelAcHold, [cancelAcHold]);
+
+  /* ---------------------------------------------------------------------- */
+  /* Keyboard support                                                       */
+  /* ---------------------------------------------------------------------- */
+
+  // The handlers are kept in a ref so that the listener only has to be
+  // registered once, while always calling the current implementation.
+  const keyboardHandlers = useRef(null);
+
+  useEffect(() => {
+    keyboardHandlers.current = {
+      appendValue,
+      appendOperator,
+      calculate,
+      clearAll,
+      backspace,
+      percentage
+    };
+  });
+
   useEffect(() => {
     const handleKeyboard = (event) => {
+      const handlers = keyboardHandlers.current;
+      if (!handlers) {
+        return;
+      }
+
       const key = event.key;
-      
+
       if (/[0-9+\-*/=.()%]/.test(key) || ['Enter', 'Escape', 'Backspace', 'Delete'].includes(key)) {
         event.preventDefault();
       }
 
       if (/[0-9.]/.test(key)) {
-        appendValue(key);
+        handlers.appendValue(key);
       } else if (key === '+') {
-        appendOperator('+');
+        handlers.appendOperator('+');
       } else if (key === '-') {
-        appendOperator('-');
+        handlers.appendOperator('-');
       } else if (key === '*') {
-        appendOperator('*');
+        handlers.appendOperator('*');
       } else if (key === '/') {
-        appendOperator('/');
+        handlers.appendOperator('/');
       } else if (key === 'Enter' || key === '=') {
-        calculate();
+        handlers.calculate();
       } else if (key === 'Escape' || key === 'Delete') {
-        clearAll();
+        handlers.clearAll();
       } else if (key === 'Backspace') {
-        backspace();
+        handlers.backspace();
       } else if (key === '%') {
-        percentage();
+        handlers.percentage();
       } else if (key === '(' || key === ')') {
-        appendValue(key);
+        handlers.appendValue(key);
       }
     };
 
     document.addEventListener('keydown', handleKeyboard);
     return () => document.removeEventListener('keydown', handleKeyboard);
-  }, [display, previousValue, operation, waitingForOperand]);
+  }, []);
+
+  /* ---------------------------------------------------------------------- */
+  /* Render                                                                 */
+  /* ---------------------------------------------------------------------- */
+
+  // The result shrinks automatically when it gets long.
+  const displaySizeClass = (() => {
+    const length = formatNumber(display).length;
+    if (length > 15) return 'text-3xl';
+    if (length > 11) return 'text-4xl';
+    if (length > 8) return 'text-5xl';
+    return 'text-6xl';
+  })();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        {/* Header */}
-        <div className="text-center mb-6">
-          <h1 className="text-4xl font-bold text-white mb-2 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-            <i className="fas fa-calculator mr-3"></i>CalculatorPro
-          </h1>
-          <p className="text-white/80">Professional Scientific Calculator</p>
+    <div className="calc-root h-screen w-full flex flex-col overflow-hidden bg-[var(--md-sys-color-surface)] text-[var(--md-sys-color-on-surface)]">
+      {/* Display */}
+      <div className="calc-display-area flex-1 min-h-0 flex flex-col justify-end px-5 pb-2">
+        {previousValue && operation && (
+          <div className="text-right text-[var(--md-sys-color-on-surface-variant)] text-lg font-medium mb-1 truncate">
+            {formatNumber(previousValue)} {getOperatorSymbol(operation)}
+          </div>
+        )}
+        <div
+          className={`calc-display text-right text-[var(--md-sys-color-on-surface)] font-light tracking-tight truncate ${
+            display === 'Error' ? 'text-[var(--md-sys-color-error-container)] text-4xl' : displaySizeClass
+          }`}
+        >
+          {formatNumber(display)}
         </div>
+      </div>
 
-        {/* Calculator Body */}
-        <div className="bg-gray-900/90 backdrop-blur-xl rounded-3xl p-6 shadow-2xl border border-white/10">
-          {/* Mode Switcher */}
-          <div className="flex bg-gray-800/50 rounded-2xl p-1.5 mb-6 gap-1">
+      {/* Mode Switcher */}
+      <div className="px-4 pb-2">
+        <div className="flex bg-[var(--md-sys-color-surface-container)] rounded-2xl p-1 gap-1">
+          {[
+            { key: 'basic', icon: 'fa-calculator', label: 'Basic' },
+            { key: 'scientific', icon: 'fa-flask', label: 'Sci' },
+            { key: 'history', icon: 'fa-history', label: 'History' },
+            { key: 'settings', icon: 'fa-cog', label: 'Settings' }
+          ].map((mode) => (
+            <button
+              key={mode.key}
+              onClick={() => setActiveMode(mode.key)}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-1 py-2 rounded-xl font-medium transition-all duration-200 text-xs ${
+                activeMode === mode.key
+                  ? 'bg-[var(--md-sys-color-primary)] text-[var(--md-sys-color-on-primary)]'
+                  : 'text-[var(--md-sys-color-on-surface-variant)] active:bg-[var(--md-sys-color-surface-container-high)]'
+              }`}
+            >
+              <i className={`fas ${mode.icon} text-sm`}></i>
+              <span className="truncate">{mode.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/*
+        Mode panel.
+
+        The panel always occupies the same amount of space, no matter which mode
+        is active. Without this the whole calculator would grow and shrink when
+        switching between basic, scientific, history and settings.
+      */}
+      <div className="calc-panel h-40 px-4 pb-2">
+        {/* Scientific Panel */}
+        {activeMode === 'scientific' && (
+          <div className="h-full grid grid-cols-5 grid-rows-3 gap-2">
             {[
-              { key: 'basic', icon: 'fa-calculator', label: 'Basic' },
-              { key: 'scientific', icon: 'fa-flask', label: 'Sci' },
-              { key: 'history', icon: 'fa-history', label: 'History' },
-              { key: 'settings', icon: 'fa-cog', label: 'Settings' }
-            ].map((mode) => (
+              { label: 'sin', action: () => appendFunction('sin(') },
+              { label: 'cos', action: () => appendFunction('cos(') },
+              { label: 'tan', action: () => appendFunction('tan(') },
+              { label: 'log', action: () => appendFunction('log(') },
+              { label: 'ln', action: () => appendFunction('ln(') },
+              { label: 'π', action: () => appendValue('π') },
+              { label: 'e', action: () => appendValue('e') },
+              { label: '√', action: () => appendFunction('sqrt(') },
+              { label: 'x²', action: power },
+              { label: 'x^y', action: () => appendOperator('**') },
+              { label: '(', action: () => appendValue('(') },
+              { label: ')', action: () => appendValue(')') },
+              { label: '|x|', action: () => appendFunction('abs(') },
+              { label: 'x!', action: factorialResult },
+              { label: '%', action: percentage }
+            ].map((button, index) => (
               <button
-                key={mode.key}
-                onClick={() => setActiveMode(mode.key)}
-                className={`flex-1 px-3 py-2.5 rounded-xl font-medium transition-all duration-300 text-sm ${
-                  activeMode === mode.key
-                    ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg transform -translate-y-0.5'
-                    : 'text-gray-400 hover:text-white hover:bg-white/5'
-                }`}
+                key={button.label}
+                onClick={button.action}
+                className="calc-key bg-[var(--md-sys-color-tertiary-container)] text-[var(--md-sys-color-on-tertiary-container)] rounded-xl font-medium text-sm active:scale-95 active:brightness-95 transition-all duration-100"
               >
-                <i className={`fas ${mode.icon} mr-1.5`}></i>
-                <span className="hidden sm:inline">{mode.label}</span>
+                {button.label}
               </button>
             ))}
           </div>
+        )}
 
-          {/* Display */}
-          <div className="bg-gray-800 rounded-2xl p-6 mb-6 shadow-inner">
-            {previousValue && operation && (
-              <div className="text-right text-gray-400 text-sm mb-2">
-                {formatNumber(previousValue)} {getOperatorSymbol(operation)}
+        {/* History Panel (also used as the "recent calculations" area in basic mode) */}
+        {(activeMode === 'history' || activeMode === 'basic') && (
+          <div className="h-full bg-[var(--md-sys-color-surface-container-low)] rounded-2xl p-3 overflow-y-auto">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-[11px] uppercase tracking-wider text-[var(--md-sys-color-on-surface-variant)]">
+                {activeMode === 'history' ? 'History' : 'Recent calculations'}
               </div>
-            )}
-            <div className={`text-right text-white font-semibold text-3xl overflow-hidden ${
-              display === 'Error' ? 'text-red-400' : ''
-            }`}>
-              {formatNumber(display)}
-            </div>
-          </div>
-
-          {/* Scientific Panel */}
-          {activeMode === 'scientific' && (
-            <div className="grid grid-cols-5 gap-2 mb-4">
-              {[
-                { label: 'sin', action: () => appendFunction('sin(') },
-                { label: 'cos', action: () => appendFunction('cos(') },
-                { label: 'tan', action: () => appendFunction('tan(') },
-                { label: 'log', action: () => appendFunction('log(') },
-                { label: 'ln', action: () => appendFunction('ln(') },
-                { label: 'π', action: () => appendValue('π') },
-                { label: 'e', action: () => appendValue('e') },
-                { label: '√', action: () => appendFunction('sqrt(') },
-                { label: 'x²', action: power },
-                { label: 'xʸ', action: () => appendOperator('**') },
-                { label: '(', action: () => appendValue('(') },
-                { label: ')', action: () => appendValue(')') },
-                { label: '|x|', action: () => appendFunction('abs(') },
-                { label: 'x!', action: factorial },
-                { label: '%', action: percentage }
-              ].map((btn, idx) => (
+              {history.length > 0 && (
                 <button
-                  key={idx}
-                  onClick={btn.action}
-                  className="h-10 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg font-medium text-xs hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
+                  onClick={clearHistory}
+                  className="text-[11px] text-[var(--md-sys-color-on-surface-variant)] hover:text-[var(--md-sys-color-on-surface)] flex items-center gap-1 px-1"
                 >
-                  {btn.label}
+                  <i className="fas fa-trash text-[10px]"></i>
+                  Clear
                 </button>
-              ))}
-            </div>
-          )}
-
-          {/* History Panel */}
-          {activeMode === 'history' && (
-            <div className="mb-4 max-h-64 overflow-y-auto bg-gray-800/50 rounded-2xl p-4">
-              {history.length === 0 ? (
-                <div className="text-center text-gray-400 py-8">
-                  <i className="fas fa-history text-3xl mb-3 opacity-50"></i>
-                  <p>No calculations yet</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {history.map((item, idx) => (
-                    <div
-                      key={idx}
-                      onClick={() => loadFromHistory(item.result)}
-                      className="p-3 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10 transition-all duration-200"
-                    >
-                      <div className="text-white font-medium">
-                        {item.expression} = {formatNumber(item.result)}
-                      </div>
-                      <div className="text-gray-400 text-xs mt-1">
-                        {item.timestamp}
-                      </div>
-                    </div>
-                  ))}
-                </div>
               )}
             </div>
-          )}
+            {history.length === 0 ? (
+              <div className="text-center text-[var(--md-sys-color-on-surface-variant)] py-6">
+                <i className="fas fa-history text-2xl mb-2 opacity-60"></i>
+                <p className="text-sm">No calculations yet</p>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {history.map((item, index) => (
+                  <div
+                    key={`${item.timestamp}-${index}`}
+                    onClick={() => loadFromHistory(item.result)}
+                    className="p-2.5 bg-[var(--md-sys-color-surface-container-high)] rounded-xl cursor-pointer active:bg-[var(--md-sys-color-surface-container-highest)] transition-all duration-150"
+                  >
+                    <div className="text-[var(--md-sys-color-on-surface)] font-medium text-sm truncate">
+                      {item.expression} = {formatNumber(item.result)}
+                    </div>
+                    <div className="text-[var(--md-sys-color-on-surface-variant)] text-xs mt-0.5">
+                      {item.timestamp}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
-          {/* Settings Panel */}
-          {activeMode === 'settings' && (
-            <div className="mb-4 bg-gray-800/50 rounded-2xl p-4 space-y-4">
+        {/* Settings Panel */}
+        {activeMode === 'settings' && (
+          <div className="h-full bg-[var(--md-sys-color-surface-container-low)] rounded-2xl p-3 overflow-y-auto">
+            <div className="space-y-1">
               {Object.entries({
                 sound: 'Sound Effects',
                 vibration: 'Vibration Feedback',
-                history: 'Save History',
-                theme: 'Dark Theme'
+                history: 'Save History'
               }).map(([key, label]) => (
-                <div key={key} className="flex justify-between items-center">
-                  <label className="text-white font-medium">{label}</label>
+                <div key={key} className="flex justify-between items-center py-1">
+                  <label className="text-[var(--md-sys-color-on-surface)] font-medium text-sm">{label}</label>
                   <button
                     onClick={() => toggleSetting(key)}
-                    className={`w-12 h-6 rounded-full transition-all duration-300 ${
-                      settings[key] ? 'bg-blue-500' : 'bg-gray-600'
+                    className={`w-11 h-6 rounded-full transition-colors duration-200 ${
+                      settings[key]
+                        ? 'bg-[var(--md-sys-color-primary)]'
+                        : 'bg-[var(--md-sys-color-surface-container-highest)]'
                     }`}
                   >
-                    <div className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-300 ${
-                      settings[key] ? 'translate-x-6' : 'translate-x-0.5'
-                    }`}></div>
+                    <div
+                      className={`w-5 h-5 bg-[var(--md-sys-color-on-primary)] rounded-full shadow transition-transform duration-200 ${
+                        settings[key] ? 'translate-x-5' : 'translate-x-0.5'
+                      }`}
+                    ></div>
                   </button>
                 </div>
               ))}
             </div>
-          )}
-
-          {/* Main Buttons */}
-          <div className="grid grid-cols-4 gap-3">
-            {/* Row 1 */}
-            <button onClick={clearAll} className="h-14 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl font-semibold hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95">
-              AC
-            </button>
-            <button onClick={backspace} className="h-14 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl font-semibold hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95">
-              <i className="fas fa-backspace"></i>
-            </button>
-            <button onClick={() => appendOperator('/')} className="h-14 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95">
-              ÷
-            </button>
-            <button onClick={() => appendOperator('*')} className="h-14 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95">
-              ×
-            </button>
-
-            {/* Row 2 */}
-            <button onClick={() => appendValue('7')} className="h-14 bg-gray-700 text-white rounded-xl font-semibold hover:bg-gray-600 hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95">
-              7
-            </button>
-            <button onClick={() => appendValue('8')} className="h-14 bg-gray-700 text-white rounded-xl font-semibold hover:bg-gray-600 hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95">
-              8
-            </button>
-            <button onClick={() => appendValue('9')} className="h-14 bg-gray-700 text-white rounded-xl font-semibold hover:bg-gray-600 hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95">
-              9
-            </button>
-            <button onClick={() => appendOperator('-')} className="h-14 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95">
-              −
-            </button>
-
-            {/* Row 3 */}
-            <button onClick={() => appendValue('4')} className="h-14 bg-gray-700 text-white rounded-xl font-semibold hover:bg-gray-600 hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95">
-              4
-            </button>
-            <button onClick={() => appendValue('5')} className="h-14 bg-gray-700 text-white rounded-xl font-semibold hover:bg-gray-600 hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95">
-              5
-            </button>
-            <button onClick={() => appendValue('6')} className="h-14 bg-gray-700 text-white rounded-xl font-semibold hover:bg-gray-600 hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95">
-              6
-            </button>
-            <button onClick={() => appendOperator('+')} className="h-14 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95">
-              +
-            </button>
-
-            {/* Row 4 */}
-            <button onClick={() => appendValue('1')} className="h-14 bg-gray-700 text-white rounded-xl font-semibold hover:bg-gray-600 hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95">
-              1
-            </button>
-            <button onClick={() => appendValue('2')} className="h-14 bg-gray-700 text-white rounded-xl font-semibold hover:bg-gray-600 hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95">
-              2
-            </button>
-            <button onClick={() => appendValue('3')} className="h-14 bg-gray-700 text-white rounded-xl font-semibold hover:bg-gray-600 hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95">
-              3
-            </button>
-            <button onClick={() => appendValue('.')} className="h-14 bg-gray-700 text-white rounded-xl font-semibold hover:bg-gray-600 hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95">
-              .
-            </button>
-
-            {/* Row 5 */}
-            <button onClick={() => appendValue('0')} className="col-span-2 h-14 bg-gray-700 text-white rounded-xl font-semibold hover:bg-gray-600 hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95">
-              0
-            </button>
-            <button onClick={calculate} className="col-span-2 h-14 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95">
-              =
-            </button>
           </div>
-        </div>
+        )}
       </div>
 
-      <style jsx>{`
-        @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
-        
+      {/* Keypad */}
+      <div className="calc-keypad flex-[1.55] min-h-0 px-4 pb-[calc(var(--safe-area-bottom,0px)+0.5rem)] grid grid-cols-4 grid-rows-5 gap-2">
+        <button
+          onClick={clearAll}
+          onPointerDown={startAcHold}
+          onPointerUp={cancelAcHold}
+          onPointerLeave={cancelAcHold}
+          className="calc-key bg-[var(--md-sys-color-error-container)] text-[var(--md-sys-color-on-error-container)] rounded-2xl text-xl font-medium active:scale-95 active:brightness-95 transition-all duration-100"
+        >
+          AC
+        </button>
+        <button
+          onClick={backspace}
+          className="calc-key bg-[var(--md-sys-color-error-container)] text-[var(--md-sys-color-on-error-container)] rounded-2xl text-xl font-medium active:scale-95 active:brightness-95 transition-all duration-100"
+        >
+          <i className="fas fa-backspace"></i>
+        </button>
+        <button
+          onClick={percentage}
+          className="calc-key bg-[var(--md-sys-color-surface-container-high)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-xl font-medium active:scale-95 active:brightness-95 transition-all duration-100"
+        >
+          %
+        </button>
+        <button
+          onClick={() => appendOperator('/')}
+          className="calc-key bg-[var(--md-sys-color-surface-container-highest)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100"
+        >
+          ÷
+        </button>
+
+        <button onClick={() => appendValue('7')} className="calc-key bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">7</button>
+        <button onClick={() => appendValue('8')} className="calc-key bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">8</button>
+        <button onClick={() => appendValue('9')} className="calc-key bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">9</button>
+        <button onClick={() => appendOperator('*')} className="calc-key bg-[var(--md-sys-color-surface-container-highest)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">×</button>
+
+        <button onClick={() => appendValue('4')} className="calc-key bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">4</button>
+        <button onClick={() => appendValue('5')} className="calc-key bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">5</button>
+        <button onClick={() => appendValue('6')} className="calc-key bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">6</button>
+        <button onClick={() => appendOperator('-')} className="calc-key bg-[var(--md-sys-color-surface-container-highest)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">−</button>
+
+        <button onClick={() => appendValue('1')} className="calc-key bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">1</button>
+        <button onClick={() => appendValue('2')} className="calc-key bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">2</button>
+        <button onClick={() => appendValue('3')} className="calc-key bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">3</button>
+        <button onClick={() => appendOperator('+')} className="calc-key bg-[var(--md-sys-color-surface-container-highest)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">+</button>
+
+        <button onClick={() => appendValue('0')} className="calc-key col-span-2 bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">0</button>
+        <button onClick={() => appendValue('.')} className="calc-key bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] rounded-2xl text-2xl font-normal active:scale-95 active:brightness-95 transition-all duration-100">.</button>
+        <button onClick={calculate} className="calc-key bg-[var(--md-sys-color-primary)] text-[var(--md-sys-color-on-primary)] rounded-2xl text-2xl font-medium active:scale-95 active:brightness-95 transition-all duration-100">=</button>
+      </div>
+
+      <style>{`
+        :root {
+          --safe-area-top: 0px;
+          --safe-area-bottom: 0px;
+          --safe-area-left: 0px;
+          --safe-area-right: 0px;
+        }
+
+        html, body, #root {
+          height: 100%;
+        }
+
+        body {
+          overscroll-behavior: none;
+          -webkit-tap-highlight-color: transparent;
+        }
+
+        /* The app draws behind the status bar and the gesture bar, the safe area
+           variables (injected from Android) keep the content clear of them. */
+        .calc-root {
+          /* Fill the viewport reliably. 100vh is unreliable inside an Android
+             WebView (it can be smaller than the visible area), so the app is
+             pinned to the viewport instead. */
+          position: fixed;
+          inset: 0;
+          height: auto;
+          padding-top: var(--safe-area-top);
+          padding-bottom: var(--safe-area-bottom);
+          padding-left: var(--safe-area-left);
+          padding-right: var(--safe-area-right);
+        }
+
+        .calc-keypad {
+          padding-bottom: calc(var(--safe-area-bottom, 0px) + 0.5rem);
+        }
+
         /* Custom scrollbar */
         ::-webkit-scrollbar {
-          width: 6px;
+          width: 4px;
         }
-        
+
         ::-webkit-scrollbar-track {
-          background: rgba(255, 255, 255, 0.1);
-          border-radius: 3px;
+          background: transparent;
         }
-        
+
         ::-webkit-scrollbar-thumb {
-          background: rgba(59, 130, 246, 0.8);
+          background: rgba(127, 127, 127, 0.4);
           border-radius: 3px;
         }
-        
-        ::-webkit-scrollbar-thumb:hover {
-          background: rgba(59, 130, 246, 1);
+
+        /* Subtle entrance animation when the mode panel changes */
+        @keyframes calc-panel-in {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
         }
 
-        /* Responsive adjustments */
-        @media (max-height: 700px) and (orientation: landscape) {
-          .min-h-screen {
-            min-height: auto;
-            padding: 1rem;
-          }
+        .calc-panel > * {
+          animation: calc-panel-in 0.18s ease-out;
         }
 
-        @media (max-width: 380px) {
-          .text-4xl {
-            font-size: 2rem;
+        /*
+         * Responsive adjustments: on short screens everything is scaled down a
+         * bit so that the calculator still fits on the display.
+         */
+        @media (max-height: 700px) {
+          .calc-panel {
+            height: 8.5rem;
           }
-          .text-3xl {
-            font-size: 1.5rem;
-          }
-          .h-14 {
-            height: 3rem;
-          }
-          .h-10 {
-            height: 2.25rem;
+          .calc-key {
+            font-size: 1.25rem;
           }
         }
       `}</style>
     </div>
   );
 };
+
+/* The pure helpers are exported so that they can be unit tested. */
+export { evaluateExpression, formatNumber, performCalculation, getOperatorSymbol };
 
 export default Calculator;

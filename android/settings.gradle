@@ -1,0 +1,5 @@
+// The Capacitor Android runtime is resolved from Maven Central (com.capacitorjs:core)
+// instead of the copy that lives inside node_modules. This keeps the Gradle build
+// completely self-contained, which is required for CI builds and for F-Droid's
+// reproducible from-source builds (F-Droid clones the repository only).
+include ':app'

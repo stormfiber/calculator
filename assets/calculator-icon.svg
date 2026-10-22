@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- CalculatorPro app icon: a calculator drawn in white on a transparent canvas.
+       The interior of the calculator is transparent on purpose, so the gradient
+       background of the launcher icon shows through it. -->
+  <g fill="#ffffff">
+    <rect x="255" y="215" width="514" height="594" rx="46" ry="46"
+          fill="none" stroke="#ffffff" stroke-width="46"/>
+    <rect x="300" y="262" width="424" height="100" rx="18" ry="18"/>
+    <rect x="300" y="420" width="96" height="96" rx="24" ry="24"/>
+    <rect x="464" y="420" width="96" height="96" rx="24" ry="24"/>
+    <rect x="628" y="420" width="96" height="96" rx="24" ry="24"/>
+    <rect x="300" y="546" width="96" height="96" rx="24" ry="24"/>
+    <rect x="464" y="546" width="96" height="96" rx="24" ry="24"/>
+    <rect x="628" y="546" width="96" height="96" rx="24" ry="24"/>
+    <rect x="300" y="672" width="96" height="96" rx="24" ry="24"/>
+    <rect x="464" y="672" width="96" height="96" rx="24" ry="24"/>
+    <rect x="628" y="672" width="96" height="96" rx="24" ry="24"/>
+  </g>
+</svg>

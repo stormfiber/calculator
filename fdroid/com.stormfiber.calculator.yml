@@ -1,0 +1,26 @@
+Categories:
+  - Calculator
+License: MIT
+AuthorName: Qasim Ali
+AuthorEmail: raikasim1@gmail.com
+WebSite: https://stormfiber.github.io/calculator
+SourceCode: https://github.com/stormfiber/calculator
+IssueTracker: https://github.com/stormfiber/calculator/issues
+Changelog: https://github.com/stormfiber/calculator/releases
+
+RepoType: git
+Repo: https://github.com/stormfiber/calculator.git
+
+Builds:
+  - versionName: "1.0.0"
+    versionCode: 1
+    commit: v1.0.0
+    subdir: android
+    gradle:
+      - yes
+    javapackage: temurin-21
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: "1.0.0"
+CurrentVersionCode: 1

@@ -9,6 +9,9 @@ coverage/
 # Production build
 /build
 
+# Local APKs (built for manual testing)
+/dist
+
 # Misc
 .DS_Store
 .env.local

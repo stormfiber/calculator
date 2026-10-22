@@ -1,0 +1,6 @@
+First release of CalculatorPro for Android.
+
+* Basic and scientific calculator
+* Calculation history
+* Optional sound and vibration feedback
+* Works completely offline
