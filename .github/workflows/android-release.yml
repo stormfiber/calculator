@@ -33,7 +33,7 @@ jobs:
           [ -x "$SDKMGR" ] || SDKMGR="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1)"
           [ -n "$SDKMGR" ] || { echo "sdkmanager not found in $ANDROID_HOME" >&2; exit 1; }
           yes | "$SDKMGR" --licenses >/dev/null 2>&1 || true
-          "$SDKMGR" --install "platforms;android-37" "build-tools;37.0.0"
+          "$SDKMGR" --install "platforms;android-37.0" "build-tools;37.0.0"
           echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
 
       - name: Generate debug keystore
@@ -48,7 +48,7 @@ jobs:
         run: |
           set -eo pipefail
           export ANDROID_BUILD_TOOLS="$ANDROID_HOME/build-tools/37.0.0"
-          export ANDROID_JAR="$ANDROID_HOME/platforms/android-37/android.jar"
+          export ANDROID_JAR="$ANDROID_HOME/platforms/android-37.0/android.jar"
           export ANDROID_KS="$RUNNER_TEMP/debug.keystore"
           ./android/build.sh
 
