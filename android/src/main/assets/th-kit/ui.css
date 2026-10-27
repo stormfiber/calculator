@@ -1,0 +1,160 @@
+/* th-kit/ui.css — standalone stub of the host design kit.
+   Covers the th-* component classes used by the app so it renders
+   correctly without the host injecting its own kit. */
+
+.th-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 8px 18px;
+  border: 1px solid var(--md-outline-variant, #cac4d0);
+  border-radius: 9999px;
+  background: var(--md-surface-container-highest, #e6e0e9);
+  color: var(--md-on-surface, #1d1b20);
+  font-family: var(--font-body, sans-serif);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.th-btn:hover {
+  background: var(--md-surface-container-high, #ece6f0);
+}
+
+.th-btn:active {
+  transform: scale(0.96);
+}
+
+.th-btn-primary {
+  background: var(--md-primary, #6750a4);
+  color: var(--md-on-primary, #fff);
+  border-color: transparent;
+}
+
+.th-btn-primary:hover {
+  filter: brightness(1.05);
+  background: var(--md-primary, #6750a4);
+}
+
+.th-btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--md-on-surface-variant, #49454f);
+}
+
+.th-btn-ghost:hover {
+  background: var(--md-surface-container-high, #ece6f0);
+}
+
+.th-btn-sm {
+  min-height: 32px;
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+.th-btn-block {
+  width: 100%;
+}
+
+.th-input,
+.th-select {
+  border: 1px solid var(--md-outline-variant, #cac4d0);
+  border-radius: 8px;
+  background: var(--md-surface-container, #f3edf7);
+  color: var(--md-on-surface, #1d1b20);
+  font-family: var(--font-body, sans-serif);
+  font-size: 14px;
+  padding: 10px 12px;
+  outline: none;
+  user-select: text;
+  transition: border-color 0.15s ease;
+}
+
+.th-input:focus,
+.th-select:focus {
+  border-color: var(--md-primary, #6750a4);
+}
+
+.th-input::placeholder {
+  color: var(--md-outline, #79747e);
+}
+
+.th-select {
+  appearance: none;
+  cursor: pointer;
+}
+
+.th-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--md-outline, #79747e);
+  font-size: 14px;
+}
+
+/* Dialogs & sheets */
+.th-modal,
+.th-sheet {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+}
+
+.th-modal[open],
+.th-sheet[open] {
+  display: block;
+}
+
+/* Toasts (fx.js) */
+.th-toast-host {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.th-toast {
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: 9999px;
+  background: var(--md-surface-container-highest, #36343b);
+  color: var(--md-on-surface, #e6e0e9);
+  font-family: var(--font-body, sans-serif);
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.th-toast.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.th-toast.leaving {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+/* Icon sizing inside th-* controls */
+.th-btn .icon,
+.th-icon-btn .icon,
+.m3-icon-btn .icon,
+.m3-history-search .icon,
+.m3-sheet-title-group .icon {
+  width: 18px;
+  height: 18px;
+  display: inline-block;
+  vertical-align: middle;
+}

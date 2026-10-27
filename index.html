@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en" data-neutral="slate">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quadrant Calc Pro</title>
+  <link rel="stylesheet" href="th-kit/ui.css">
+  <link rel="stylesheet" href="th-kit/fonts/inter.css">
+  <link rel="stylesheet" href="th-kit/fonts/space-grotesk.css">
+  <link rel="stylesheet" href="th-kit/fonts/jetbrains-mono.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="th-kit/icons.js?calculator,history,sliders,trash-2,copy,rotate-ccw,check,x,volume-2,volume-x,share-2,percent,chevron-down,sparkles,arrow-left,search"></script>
+</head>
+<body class="m3-body">
+  <div class="m3-app-shell">
+    <!-- Top App Bar -->
+    <header class="m3-top-bar">
+      <div class="m3-top-bar-start">
+        <div class="m3-app-brand">
+          <img src="assets/logo.png" alt="Quadrant Calc Pro" class="m3-app-logo" onerror="this.style.display='none'; document.getElementById('text-logo-fallback').style.display='flex'">
+          <div id="text-logo-fallback" class="m3-logo-badge" style="display:none">QC</div>
+          <span class="m3-app-title">Quadrant Calc Pro</span>
+        </div>
+      </div>
+      <div class="m3-top-bar-actions">
+        <button id="btn-sound-toggle" class="m3-icon-btn" aria-label="Toggle sound feedback" title="Sound feedback">
+          <i data-icon="volume-2" id="sound-icon"></i>
+        </button>
+        <button id="btn-open-history" class="m3-icon-btn" aria-label="Open calculation history" title="Calculation history">
+          <i data-icon="history"></i>
+          <span id="history-badge" class="m3-badge-dot" style="display:none"></span>
+        </button>
+        <button id="btn-open-settings" class="m3-icon-btn" aria-label="Open settings" title="Themes and settings">
+          <i data-icon="sliders"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Layout Container (Responsive: Single on mobile, Two-pane on tablet/desktop) -->
+    <main class="m3-main-stage">
+      <!-- Left / Primary Pane: Display & Keypad -->
+      <section class="m3-calculator-card">
+        
+        <!-- Segmented Mode Selector Pills -->
+        <nav class="m3-mode-selector" aria-label="Calculator Modes">
+          <button class="m3-mode-pill is-active" data-mode="basic">Basic</button>
+          <button class="m3-mode-pill" data-mode="standard">Standard</button>
+          <button class="m3-mode-pill" data-mode="professional">Professional</button>
+          <button class="m3-mode-pill" data-mode="scientific">Scientific</button>
+        </nav>
+
+        <!-- Material 3 Display Screen -->
+        <div class="m3-display-panel" id="display-container">
+          <!-- Memory & Angle Indicators -->
+          <div class="m3-status-indicators">
+            <span id="indicator-rad-deg" class="m3-indicator-chip" style="display:none">DEG</span>
+            <span id="indicator-memory" class="m3-indicator-chip" style="display:none">M</span>
+            <span id="indicator-mode-name" class="m3-indicator-pill">Basic</span>
+          </div>
+
+          <!-- Formula / Expression line -->
+          <div class="m3-expression-scroll">
+            <div id="calc-expression" class="m3-expression-text"></div>
+          </div>
+
+          <!-- Main Live Output / Input Result -->
+          <div class="m3-result-line">
+            <div id="calc-result" class="m3-result-text">0</div>
+          </div>
+
+          <!-- Live Evaluation Preview line -->
+          <div class="m3-preview-line">
+            <span id="calc-preview" class="m3-preview-text"></span>
+            <button id="btn-copy-result" class="m3-copy-result" type="button" aria-label="Copy result" title="Copy result">
+              <i data-icon="copy"></i>
+              <span aria-live="polite">Copy</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Mode-Specific Quick Utilities Bar -->
+        <div id="quick-toolbar" class="m3-quick-toolbar"></div>
+
+        <!-- Dynamic Keypad Area -->
+        <div id="calc-keypad" class="m3-keypad-grid basic-layout">
+          <!-- Dynamically populated per mode -->
+        </div>
+      </section>
+
+      <!-- Right Pane: Desktop Paper Tape & Quick Financial Tools (shown on wide screens) -->
+      <aside class="m3-side-stage" id="desktop-side-stage">
+        <div class="m3-side-header">
+          <h2 class="m3-side-title">Paper Tape History</h2>
+          <div class="m3-side-actions">
+            <button id="btn-desktop-clear-hist" class="th-btn th-btn-ghost th-btn-sm" title="Clear history">
+              <i data-icon="trash-2"></i> Clear
+            </button>
+          </div>
+        </div>
+        <div class="m3-history-search">
+          <i data-icon="search"></i>
+          <input id="desktop-history-search" class="th-input" type="search" placeholder="Search calculations" aria-label="Search calculations">
+          <select id="desktop-history-date-filter" class="th-select m3-history-date-filter" aria-label="Filter history by date">
+            <option value="all">All time</option>
+            <option value="today">Today</option>
+            <option value="7d">Last 7 days</option>
+            <option value="30d">Last 30 days</option>
+          </select>
+        </div>
+        <div id="desktop-history-list" class="m3-history-stream">
+          <div class="th-empty m3-empty-state">
+            <p>Calculations appear here as you work.</p>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- History Bottom Sheet / Dialog (Mobile & Drawer) -->
+    <dialog id="sheet-history" class="th-sheet m3-modal-sheet">
+      <div class="m3-sheet-header">
+        <div class="m3-sheet-handle"></div>
+        <div class="m3-sheet-title-row">
+          <div class="m3-sheet-title-group">
+            <i data-icon="history"></i>
+            <h3>Calculation History</h3>
+          </div>
+          <div class="m3-sheet-controls">
+            <button id="btn-sheet-clear-hist" class="th-btn th-btn-ghost th-btn-sm">
+              <i data-icon="trash-2"></i> Clear
+            </button>
+            <button id="btn-close-history" class="m3-icon-btn" aria-label="Close">
+              <i data-icon="x"></i>
+            </button>
+          </div>
+        </div>
+        <div class="m3-history-search">
+          <i data-icon="search"></i>
+          <input id="sheet-history-search" class="th-input" type="search" placeholder="Search calculations" aria-label="Search calculations">
+          <select id="sheet-history-date-filter" class="th-select m3-history-date-filter" aria-label="Filter history by date">
+            <option value="all">All time</option>
+            <option value="today">Today</option>
+            <option value="7d">Last 7 days</option>
+            <option value="30d">Last 30 days</option>
+          </select>
+        </div>
+      </div>
+      <div class="m3-sheet-body">
+        <div id="sheet-history-list" class="m3-history-stream">
+          <div class="th-empty m3-empty-state">
+            <p>Calculations appear here as you work.</p>
+          </div>
+        </div>
+      </div>
+    </dialog>
+
+    <!-- Professional Tools Dialog (Tax, Margin, Discount, Loan) -->
+    <dialog id="modal-pro-tool" class="th-modal m3-pro-modal">
+      <div class="m3-modal-head">
+        <h3 id="pro-tool-title">Business Calculator</h3>
+        <button id="btn-close-pro-modal" class="m3-icon-btn" aria-label="Close">
+          <i data-icon="x"></i>
+        </button>
+      </div>
+      <div class="m3-modal-content" id="pro-tool-content">
+        <!-- Rendered based on selected pro tool -->
+      </div>
+    </dialog>
+
+    <!-- Theme & Settings Sheet -->
+    <dialog id="sheet-settings" class="th-sheet m3-modal-sheet">
+      <div class="m3-sheet-header">
+        <div class="m3-sheet-handle"></div>
+        <div class="m3-sheet-title-row">
+          <div class="m3-sheet-title-group">
+            <i data-icon="sliders"></i>
+            <h3>Display & Settings</h3>
+          </div>
+          <button id="btn-close-settings" class="m3-icon-btn" aria-label="Close">
+            <i data-icon="x"></i>
+          </button>
+        </div>
+      </div>
+      <div class="m3-sheet-body m3-settings-stack">
+        <!-- Appearance Mode -->
+        <div class="m3-setting-group">
+          <label class="m3-setting-label">Appearance</label>
+          <div class="m3-theme-segmented">
+            <button class="m3-theme-btn" data-theme-choice="system">System</button>
+            <button class="m3-theme-btn" data-theme-choice="light">Light</button>
+            <button class="m3-theme-btn" data-theme-choice="dark">Dark</button>
+            <button class="m3-theme-btn" data-theme-choice="amoled">OLED</button>
+          </div>
+        </div>
+
+        <!-- Material 3 Dynamic Color Palettes -->
+        <div class="m3-setting-group">
+          <label class="m3-setting-label">Material You Dynamic Palette</label>
+          <div class="m3-palette-grid">
+            <button class="m3-palette-chip is-selected" data-palette="purple" style="--chip-c: #6750a4" title="M3 Violet Purple">
+              <span class="m3-palette-dot"></span>
+              <span>Violet</span>
+            </button>
+            <button class="m3-palette-chip" data-palette="blue" style="--chip-c: #00639b" title="M3 Ocean Blue">
+              <span class="m3-palette-dot"></span>
+              <span>Ocean</span>
+            </button>
+            <button class="m3-palette-chip" data-palette="teal" style="--chip-c: #006a60" title="M3 Jade Teal">
+              <span class="m3-palette-dot"></span>
+              <span>Jade</span>
+            </button>
+            <button class="m3-palette-chip" data-palette="amber" style="--chip-c: #825500" title="M3 Sunset Amber">
+              <span class="m3-palette-dot"></span>
+              <span>Amber</span>
+            </button>
+            <button class="m3-palette-chip" data-palette="rose" style="--chip-c: #984061" title="M3 Crimson Rose">
+              <span class="m3-palette-dot"></span>
+              <span>Rose</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Audio & Haptics -->
+        <div class="m3-setting-group">
+          <label class="m3-setting-label">Haptic & Audio Click</label>
+          <div class="m3-toggle-card" id="toggle-sound-card">
+            <div>
+              <div class="m3-toggle-title">Keypad feedback</div>
+              <div class="m3-toggle-sub">Play tactile acoustic tone on key tap</div>
+            </div>
+            <input type="checkbox" id="setting-sound-toggle" class="m3-switch" checked>
+          </div>
+        </div>
+
+        <!-- Tax Rate Configuration -->
+        <div class="m3-setting-group">
+          <label class="m3-setting-label">Default Tax Rate (%)</label>
+          <div class="m3-tax-input-row">
+            <input type="number" id="setting-tax-rate" class="th-input" step="0.1" min="0" max="100" value="10">
+            <button id="btn-save-tax-rate" class="th-btn th-btn-primary th-btn-sm">Save</button>
+          </div>
+        </div>
+      </div>
+    </dialog>
+  </div>
+
+  <script src="th-kit/motion.js"></script>
+  <script src="th-kit/fx.js"></script>
+  <script src="calc.js"></script>
+</body>
+</html>

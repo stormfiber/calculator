@@ -1,0 +1,13 @@
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Android build intermediates (final APK is committed; skel/dex/aligned are not)
+android/build/
+
+# Web tooling (if ever added)
+node_modules/
+*.log
+
+# apksigner v4 by-product
+*.idsig
