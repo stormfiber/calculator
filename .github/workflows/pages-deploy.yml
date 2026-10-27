@@ -1,0 +1,42 @@
+name: pages-deploy
+
+# On any tag push: (re)deploy the static web app to the gh-pages branch.
+# GitHub Pages (configured to serve gh-pages) rebuilds automatically,
+# updating https://stormfiber.github.io/calculator/
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Publish web app to gh-pages
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF#refs/tags/}"
+          SITE="$RUNNER_WORKSPACE/ghpages"
+
+          rm -rf "$SITE"
+          mkdir -p "$SITE"
+          cp -r index.html calc.js style.css calculator.json assets th-kit "$SITE/"
+
+          cd "$SITE"
+          git init -q -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Deploy web app for tag ${tag}"
+
+          # Force-push a clean, generated branch (no history to preserve).
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push -f origin gh-pages
+
+          echo "gh-pages updated for tag ${tag} — GitHub Pages will rebuild automatically."

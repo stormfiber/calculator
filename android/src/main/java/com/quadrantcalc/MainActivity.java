@@ -4,9 +4,6 @@ import android.app.Activity;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.KeyEvent;
-import android.view.View;
-import android.view.Window;
-import android.view.WindowManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -14,6 +11,8 @@ import android.webkit.WebViewClient;
 /**
  * Thin WebView shell around the Quadrant Calc Pro web app.
  * The whole UI lives in assets/ (index.html + calc.js + style.css + th-kit/).
+ * Classic layout: opaque black system bars, web content below them
+ * (no edge-to-edge inset handling).
  */
 public class MainActivity extends Activity {
 
@@ -50,7 +49,7 @@ public class MainActivity extends Activity {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_BACK && webView.canGoBack()) {
+        if (keyCode == KeyEvent.KEYCODE_BACK && webView != null && webView.canGoBack()) {
             webView.goBack();
             return true;
         }

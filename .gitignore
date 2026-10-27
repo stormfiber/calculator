@@ -11,3 +11,7 @@ node_modules/
 
 # apksigner v4 by-product
 *.idsig
+
+# build outputs (rebuilt via android/build.sh / CI)
+*.apk
+*.keystore

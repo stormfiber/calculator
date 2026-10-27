@@ -7,9 +7,25 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 
-BT=/opt/android-sdk/build-tools/37.0.0
-AJAR=/opt/android-sdk/platforms/android-37.0/android.jar
-KS="$HOME/.android/debug.keystore"
+# Toolchain paths (overridable, e.g. in CI where ANDROID_HOME is set):
+#   ANDROID_SDK_ROOT - SDK directory      (default /opt/android-sdk)
+#   ANDROID_BUILD_TOOLS - build-tools dir (default <sdk>/build-tools/37.0.0)
+#   ANDROID_JAR - android.jar             (default <sdk>/platforms/android-37.0/android.jar)
+#   ANDROID_KS - signing keystore         (default ~/.android/debug.keystore)
+SDK="${ANDROID_SDK_ROOT:-/opt/android-sdk}"
+BT="${ANDROID_BUILD_TOOLS:-$SDK/build-tools/37.0.0}"
+AJAR="${ANDROID_JAR:-$SDK/platforms/android-37.0/android.jar}"
+KS="${ANDROID_KS:-$HOME/.android/debug.keystore}"
+
+# Fall back to what's actually installed (e.g. CI naming: platforms/android-37,
+# or the newest build-tools present).
+[ -d "$BT" ] || BT="$(ls -d "$SDK"/build-tools/* 2>/dev/null | sort -V | tail -1 || true)"
+[ -f "$AJAR" ] || AJAR="$(ls "$SDK"/platforms/android-*/android.jar 2>/dev/null | sort -V | tail -1 || true)"
+
+if [ -z "${BT:-}" ] || [ ! -d "$BT" ] || [ -z "${AJAR:-}" ] || [ ! -f "$AJAR" ]; then
+  echo "error: Android SDK not found (BT=$BT AJAR=$AJAR)" >&2
+  exit 1
+fi
 
 # 1. Sync web app into assets/
 rm -rf "$HERE/src/main/assets"
@@ -26,7 +42,9 @@ mkdir -p "$HERE/build/classes" "$HERE/build/dex"
   "$HERE/build/res.zip"
 
 # 3. Java + dex
-javac -encoding UTF-8 -source 8 -target 8 -bootclasspath "$AJAR" \
+# -bootclasspath pins compilation to the Android platform stubs only.
+# (No lambdas in the source — D8 desugars for minSdk 24.)
+javac -encoding UTF-8 -source 1.8 -target 1.8 -bootclasspath "$AJAR" \
   -d "$HERE/build/classes" \
   "$HERE/build/gen/com/quadrantcalc/R.java" \
   "$HERE/src/main/java/com/quadrantcalc/MainActivity.java"
