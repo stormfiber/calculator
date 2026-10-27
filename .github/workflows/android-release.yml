@@ -47,7 +47,8 @@ jobs:
           ./android/build.sh
 
       - name: Verify APK
-        run: "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --print-certs android/QuadrantCalcPro-debug.apk
+        run: |
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --print-certs android/QuadrantCalcPro-debug.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
