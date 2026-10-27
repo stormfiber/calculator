@@ -20,7 +20,7 @@ jobs:
 
       - name: Publish web app to gh-pages
         run: |
-          set -euo pipefail
+          set -eo pipefail
           tag="${GITHUB_REF#refs/tags/}"
           SITE="$RUNNER_WORKSPACE/ghpages"
 
@@ -36,7 +36,8 @@ jobs:
           git commit -m "Deploy web app for tag ${tag}"
 
           # Force-push a clean, generated branch (no history to preserve).
-          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # Token is expanded at workflow-parse time so no shell var is needed.
+          git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
           git push -f origin gh-pages
 
           echo "gh-pages updated for tag ${tag} — GitHub Pages will rebuild automatically."
