@@ -1,0 +1,8 @@
+A four-mode (Basic, Standard, Professional, Scientific) Material 3 calculator.
+
+Features:
+* Paper-tape calculation history with search, date filters and undo
+* Professional tools: TAX+/TAX-, markup, grand total, margin, discount and loan/EMI calculators
+* Scientific functions: sin/cos/tan (+inverses), log/ln, factorial, PI/e, DEG/RAD
+* Light / dark / OLED themes and 5 Material You palettes, all persisted
+* No network access, no tracking, no ads
