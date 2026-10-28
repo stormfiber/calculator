@@ -46,6 +46,7 @@ jobs:
       - name: Restore release keystore from secrets
         run: |
           set -eo pipefail
+          echo "diag: B64 len=${#RELEASE_KEYSTORE_B64} PASS len=${#RELEASE_KEYSTORE_PASS}"
           if [ -z "${RELEASE_KEYSTORE_B64:-}" ] || [ -z "${RELEASE_KEYSTORE_PASS:-}" ]; then
             echo "::error::GitHub secrets RELEASE_KEYSTORE_B64 / RELEASE_KEYSTORE_PASS are missing — refusing to publish."
             exit 1
