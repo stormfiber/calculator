@@ -1,0 +1,43 @@
+Categories:
+  - Education
+  - Productivity
+License: MIT
+AuthorName: StormFiber
+WebSite: https://stormfiber.github.io/calculator/
+SourceCode: https://github.com/stormfiber/calculator
+IssueTracker: https://github.com/stormfiber/calculator/issues
+Changelog: https://github.com/stormfiber/calculator/releases
+
+AutoName: Quadrant Calc Pro
+Description: |-
+  A four-mode Material 3 calculator (Basic, Standard, Professional,
+  Scientific) with paper-tape history, professional tools and a scientific
+  self-test suite. A static web app in a WebView shell; no network access
+  and no tracking.
+
+RepoType: git
+Repo: https://github.com/stormfiber/calculator.git
+Binaries: https://github.com/stormfiber/calculator/releases/download/%v/QuadrantCalcPro-release.apk
+
+Builds:
+  - versionName: '1.0.0'
+    versionCode: 10000
+    commit: 1.0.0
+    commands:
+      - rm -rf out && mkdir -p out
+      - ANDROID_KS= ANDROID_OUT="$(pwd)/out/QuadrantCalcPro-release.apk" ./android/build.sh
+
+AllowedAPKSigningKeys: 9320b2f4f465d195b48a2770d7156509b9f79f5abf40397dd44f72e357de2275
+
+MaintainerNotes: |-
+  Custom aapt2/javac/d8 pipeline (android/build.sh), no Gradle. The pipeline
+  is byte-reproducible (deterministic assembly; two clean builds produce
+  identical unsigned APKs, differing only in the signature block). Binaries:
+  points at the release-key-signed APK from our GitHub releases (tag ==
+  versionName), which F-Droid hosts as-is; AllowedAPKSigningKeys pins that
+  release certificate. The source build is used for verification only.
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: '1.0.0'
+CurrentVersionCode: 10000

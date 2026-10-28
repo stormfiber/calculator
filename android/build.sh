@@ -7,15 +7,22 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 
-# Toolchain paths (overridable, e.g. in CI where ANDROID_HOME is set):
+# Toolchain paths (overridable, e.g. in CI / F-Droid where ANDROID_HOME is set):
 #   ANDROID_SDK_ROOT - SDK directory      (default /opt/android-sdk)
 #   ANDROID_BUILD_TOOLS - build-tools dir (default <sdk>/build-tools/37.0.0)
 #   ANDROID_JAR - android.jar             (default <sdk>/platforms/android-37.0/android.jar)
 #   ANDROID_KS - signing keystore         (default ~/.android/debug.keystore)
-SDK="${ANDROID_SDK_ROOT:-/opt/android-sdk}"
+#   ANDROID_KS_ALIAS - key alias          (default androiddebugkey)
+#   ANDROID_KS_PASS - keystore/key pass   (default android)
+#   ANDROID_OUT - output APK path         (default <here>/QuadrantCalcPro-debug.apk)
+# Set ANDROID_KS="" to build UNSIGNED (F-Droid source-build checks sign the APK
+# themselves); an empty-but-set value is honored, unlike the default.
+SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/opt/android-sdk}}"
 BT="${ANDROID_BUILD_TOOLS:-$SDK/build-tools/37.0.0}"
 AJAR="${ANDROID_JAR:-$SDK/platforms/android-37.0/android.jar}"
-KS="${ANDROID_KS:-$HOME/.android/debug.keystore}"
+KS="${ANDROID_KS-$HOME/.android/debug.keystore}"
+KS_ALIAS="${ANDROID_KS_ALIAS:-androiddebugkey}"
+KS_PASS="${ANDROID_KS_PASS:-android}"
 
 # Fall back to what's actually installed (e.g. CI naming: platforms/android-37,
 # or the newest build-tools present).
@@ -51,13 +58,46 @@ javac -encoding UTF-8 -source 1.8 -target 1.8 -bootclasspath "$AJAR" \
 "$BT/d8" --release --lib "$AJAR" --min-api 24 --output "$HERE/build/dex" \
   $(find "$HERE/build/classes" -name '*.class')
 
-# 4. Assemble, align, sign
-cp "$HERE/build/skel.apk" "$HERE/build/unsigned.apk"
-(cd "$HERE/build/dex" && zip -0 -X -q "$HERE/build/unsigned.apk" classes.dex)
-(cd "$HERE/src/main" && zip -0 -X -q -r "$HERE/build/unsigned.apk" assets)
+# 4. Assemble (deterministic: fixed 1980 entry dates + sorted stored entries,
+# so source builds are byte-reproducible except the signature block)
+python3 - "$HERE/build/skel.apk" "$HERE/build/dex/classes.dex" "$HERE/src/main" "$HERE/build/unsigned.apk" <<'PY'
+import os, sys, zipfile
+
+skel, dex, root, out = sys.argv[1:5]
+DTIM = (1980, 1, 1, 0, 0, 0)
+
+def store(z, name, data):
+    zi = zipfile.ZipInfo(name, date_time=DTIM)
+    zi.compress_type = zipfile.ZIP_STORED
+    zi.external_attr = 0o644 << 16
+    z.writestr(zi, data)
+
+entries = []
+with zipfile.ZipFile(skel) as z:
+    for n in z.namelist():
+        entries.append((n, z.read(n)))
+entries.append(('classes.dex', open(dex, 'rb').read()))
+for path, _, files in os.walk(os.path.join(root, 'assets')):
+    for f in sorted(files):
+        p = os.path.join(path, f)
+        entries.append(('assets/' + os.path.relpath(p, os.path.join(root, 'assets')), open(p, 'rb').read()))
+entries.sort(key=lambda e: e[0])
+with zipfile.ZipFile(out, 'w') as z:
+    for name, data in entries:
+        store(z, name, data)
+PY
+
 "$BT/zipalign" -f 4 "$HERE/build/unsigned.apk" "$HERE/build/aligned.apk"
-"$BT/apksigner" sign --ks "$KS" --ks-key-alias androiddebugkey \
-  --ks-pass pass:android --key-pass pass:android \
-  --out "$HERE/QuadrantCalcPro-debug.apk" "$HERE/build/aligned.apk"
-"$BT/apksigner" verify "$HERE/QuadrantCalcPro-debug.apk"
-echo "Built: $HERE/QuadrantCalcPro-debug.apk"
+
+# 5. Sign (or leave unsigned for F-Droid CI, which signs built APKs itself)
+OUT="${ANDROID_OUT:-$HERE/QuadrantCalcPro-debug.apk}"
+if [ -n "$KS" ] && [ -f "$KS" ]; then
+  "$BT/apksigner" sign --ks "$KS" --ks-key-alias "$KS_ALIAS" \
+    --ks-pass pass:"$KS_PASS" --key-pass pass:"$KS_PASS" \
+    --out "$OUT" "$HERE/build/aligned.apk"
+  "$BT/apksigner" verify "$OUT"
+  echo "Built (signed with $KS_ALIAS): $OUT"
+else
+  cp "$HERE/build/aligned.apk" "$OUT"
+  echo "Built UNSIGNED (ANDROID_KS empty/absent — expected for F-Droid builds): $OUT"
+fi

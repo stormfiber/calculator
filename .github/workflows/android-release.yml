@@ -1,7 +1,12 @@
 name: android-release
 
-# On any tag push (e.g. 1.0.0): build the debug APK and publish a
-# GitHub Release named CalcPro-<tag> with the APK attached.
+# On any tag push (e.g. 1.0.0):
+#   build the APK signed with the long-lived RELEASE keystore (repo secrets)
+#   and publish a GitHub release "CalcPro-<tag>" with the APK attached.
+#
+# F-Droid main (f-droid/fdroiddata) hosts this exact release-signed APK via
+# its Binaries: URL, so installs/updates stay conflict-free across both
+# channels (same file, same signing key).
 on:
   push:
     tags:
@@ -11,8 +16,10 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
+  build:
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ github.ref_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,32 +43,47 @@ jobs:
           "$SDKMGR" --install "platforms;android-37.0" "build-tools;37.0.0"
           echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
 
-      - name: Generate debug keystore
+      - name: Restore release keystore from secrets
         run: |
-          keytool -genkeypair -v \
-            -keystore "$RUNNER_TEMP/debug.keystore" \
-            -alias androiddebugkey -storepass android -keypass android \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=Android Debug, O=Android, C=US"
+          set -eo pipefail
+          if [ -z "${RELEASE_KEYSTORE_B64:-}" ] || [ -z "${RELEASE_KEYSTORE_PASS:-}" ]; then
+            echo "::error::GitHub secrets RELEASE_KEYSTORE_B64 / RELEASE_KEYSTORE_PASS are missing — refusing to publish."
+            exit 1
+          fi
+          base64 -d <<<"$RELEASE_KEYSTORE_B64" > "$RUNNER_TEMP/release.keystore"
+          keytool -list -keystore "$RUNNER_TEMP/release.keystore" -storepass "$RELEASE_KEYSTORE_PASS" | head -5
 
-      - name: Build debug APK
+      - name: Build release-signed APK
         run: |
           set -eo pipefail
           export ANDROID_BUILD_TOOLS="$ANDROID_HOME/build-tools/37.0.0"
           export ANDROID_JAR="$ANDROID_HOME/platforms/android-37.0/android.jar"
-          export ANDROID_KS="$RUNNER_TEMP/debug.keystore"
+          export ANDROID_KS="$RUNNER_TEMP/release.keystore"
+          export ANDROID_KS_ALIAS="quadrantcalc"
+          export ANDROID_KS_PASS="$RELEASE_KEYSTORE_PASS"
+          export ANDROID_OUT="$GITHUB_WORKSPACE/android/QuadrantCalcPro-release.apk"
           ./android/build.sh
 
-      - name: Verify APK
+      - name: Verify APK signature
         run: |
           set -eo pipefail
-          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --print-certs android/QuadrantCalcPro-debug.apk
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify -v --print-certs android/QuadrantCalcPro-release.apk
 
-      - name: Upload APK artifact
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: QuadrantCalcPro-${{ github.ref_name }}-debug
-          path: android/QuadrantCalcPro-debug.apk
+          name: release-build
+          path: android/QuadrantCalcPro-release.apk
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-build
+          path: dist
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
@@ -71,4 +93,4 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: false
-          files: android/QuadrantCalcPro-debug.apk
+          files: dist/QuadrantCalcPro-release.apk
