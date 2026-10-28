@@ -27,8 +27,10 @@ Builds:
     output: out/QuadrantCalcPro-release.apk
     build:
       - rm -rf out && mkdir -p out
-      - SM=$(for c in /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager /opt/android-sdk/cmdline-tools/bin/sdkmanager $(command -v sdkmanager 2>/dev/null); do [ -x "$c" ] && echo "$c" && break; done || true); echo "sdkmanager=$SM"; ls /opt/android-sdk; if [ -n "$SM" ]; then yes | $SM "platforms;android-31" || true; fi; ls /opt/android-sdk/platforms 2>/dev/null || true
-      - ANDROID_KS= ANDROID_OUT="$(pwd)/out/QuadrantCalcPro-release.apk" ./android/build.sh
+      - SM=$(for c in /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager /opt/android-sdk/cmdline-tools/bin/sdkmanager $(command -v sdkmanager 2>/dev/null); do [ -x "$c" ] && echo "$c" && break; done || true)
+      - echo "sdkmanager=$SM"; if [ -n "$SM" ]; then yes | $SM "build-tools;37.0.0" "platforms;android-37.0" || true; fi
+      - ls /opt/android-sdk/build-tools /opt/android-sdk/platforms 2>/dev/null || true
+      - ANDROID_KS= ANDROID_OUT="$(pwd)/out/QuadrantCalcPro-release.apk" ANDROID_BUILD_TOOLS=/opt/android-sdk/build-tools/37.0.0 ANDROID_JAR=/opt/android-sdk/platforms/android-37.0/android.jar ./android/build.sh
 
 AllowedAPKSigningKeys: 9320b2f4f465d195b48a2770d7156509b9f79f5abf40397dd44f72e357de2275
 
