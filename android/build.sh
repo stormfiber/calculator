@@ -92,7 +92,10 @@ PY
 # 5. Sign (or leave unsigned for F-Droid CI, which signs built APKs itself)
 OUT="${ANDROID_OUT:-$HERE/QuadrantCalcPro-debug.apk}"
 if [ -n "$KS" ] && [ -f "$KS" ]; then
-  "$BT/apksigner" sign --ks "$KS" --ks-key-alias "$KS_ALIAS" \
+  # v1 (JAR) signing is unnecessary for minSdk 24 (v2 covers it) and would
+  # add META-INF entries that break byte-for-byte source-build comparison.
+  "$BT/apksigner" sign --v1-signing-enabled false \
+    --ks "$KS" --ks-key-alias "$KS_ALIAS" \
     --ks-pass pass:"$KS_PASS" --key-pass pass:"$KS_PASS" \
     --out "$OUT" "$HERE/build/aligned.apk"
   "$BT/apksigner" verify "$OUT"
