@@ -15,3 +15,10 @@ node_modules/
 # build outputs (rebuilt via android/build.sh / CI)
 *.apk
 *.keystore
+
+# release signing credentials (NEVER commit; back these up!)
+RELEASE_KEY.txt
+.release-key-pass
+
+# personal audit log — never commit/push
+bugs.md
