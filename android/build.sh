@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Rebuilds Quadrant Calc Pro debug APK (com.quadrantcalc).
 # Syncs the web app from the parent directory into src/main/assets,
-# then compiles, dexes, aligns and signs with the shared debug keystore.
+# then compiles, dexes, assembles (zipflinger-compatible layout) and signs
+# with the shared debug keystore.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -58,19 +59,16 @@ javac -encoding UTF-8 -source 1.8 -target 1.8 -bootclasspath "$AJAR" \
 "$BT/d8" --release --lib "$AJAR" --min-api 24 --output "$HERE/build/dex" \
   $(find "$HERE/build/classes" -name '*.class')
 
-# 4. Assemble (deterministic: fixed 1980 entry dates + sorted stored entries,
-# so source builds are byte-reproducible except the signature block)
+# 4. Assemble (deterministic + zipflinger-compatible layout: stored, sorted,
+# fixed 1980 dates, 0xd935 alignment extra field, 4-byte-aligned data
+# offsets). apksigner rewrites this layout byte-identically, so the signed
+# release APK and the unsigned source build differ only by the signature
+# block — what F-Droid's apksigcopier+apksigner reproducibility check needs.
 python3 - "$HERE/build/skel.apk" "$HERE/build/dex/classes.dex" "$HERE/src/main" "$HERE/build/unsigned.apk" <<'PY'
-import os, sys, zipfile
+import os, struct, sys, zlib, zipfile
 
 skel, dex, root, out = sys.argv[1:5]
 DTIM = (1980, 1, 1, 0, 0, 0)
-
-def store(z, name, data):
-    zi = zipfile.ZipInfo(name, date_time=DTIM)
-    zi.compress_type = zipfile.ZIP_STORED
-    zi.external_attr = 0o644 << 16
-    z.writestr(zi, data)
 
 entries = []
 with zipfile.ZipFile(skel) as z:
@@ -82,12 +80,44 @@ for path, _, files in os.walk(os.path.join(root, 'assets')):
         p = os.path.join(path, f)
         entries.append(('assets/' + os.path.relpath(p, os.path.join(root, 'assets')), open(p, 'rb').read()))
 entries.sort(key=lambda e: e[0])
-with zipfile.ZipFile(out, 'w') as z:
-    for name, data in entries:
-        store(z, name, data)
-PY
 
-"$BT/zipalign" -f 4 "$HERE/build/unsigned.apk" "$HERE/build/aligned.apk"
+def tm_fields(dt):
+    t = (dt[3] << 11) | (dt[4] << 5) | (dt[5] // 2)
+    da = ((dt[0] - 1980) << 9) | (dt[1] << 5) | dt[2]
+    return t, da
+
+outb = bytearray()
+cd_rows = []
+pos = 0
+for name, data in entries:
+    nb = name.encode()
+    nl = len(nb)
+    crcv = zlib.crc32(data) & 0xFFFFFFFF
+    us = cs = len(data)
+    t, da = tm_fields(DTIM)
+    need = (-(pos + 30 + nl + 4)) % 4
+    n = need + 4 if need < 2 else need
+    el = 4 + n
+    extra = b'\x35\xd9' + struct.pack('<H', n) + b'\x04' + b'\x00' * (n - 1)
+    hdr = (b'PK\x03\x04'
+           + struct.pack('<HHHHHIIIHH', 20, 0, 0, t, da, crcv, cs, us, nl, el)
+           + nb + extra + data)
+    assert (pos + 30 + nl + el) % 4 == 0, 'entry data misaligned: ' + name
+    off = pos
+    outb += hdr
+    pos += len(hdr)
+    cd_rows.append(b'PK\x01\x02'
+        + struct.pack('<HHHHHHIIIHHHHHI', 20, 20, 0, 0, t, da, crcv, cs, us, nl, el, 0, 0, 0, 0)
+        + struct.pack('<I', off)
+        + nb + extra)
+cd_off = pos
+cdb = bytearray()
+for row in cd_rows:
+    cdb += row
+outb += cdb
+outb += b'PK\x05\x06' + struct.pack('<HHHHIIH', 0, 0, len(entries), len(entries), len(cdb), cd_off, 0)
+open(out, 'wb').write(bytes(outb))
+PY
 
 # 5. Sign (or leave unsigned for F-Droid CI, which signs built APKs itself)
 OUT="${ANDROID_OUT:-$HERE/QuadrantCalcPro-debug.apk}"
@@ -97,10 +127,10 @@ if [ -n "$KS" ] && [ -f "$KS" ]; then
   "$BT/apksigner" sign --v1-signing-enabled false \
     --ks "$KS" --ks-key-alias "$KS_ALIAS" \
     --ks-pass pass:"$KS_PASS" --key-pass pass:"$KS_PASS" \
-    --out "$OUT" "$HERE/build/aligned.apk"
+    --out "$OUT" "$HERE/build/unsigned.apk"
   "$BT/apksigner" verify "$OUT"
   echo "Built (signed with $KS_ALIAS): $OUT"
 else
-  cp "$HERE/build/aligned.apk" "$OUT"
+  cp "$HERE/build/unsigned.apk" "$OUT"
   echo "Built UNSIGNED (ANDROID_KS empty/absent — expected for F-Droid builds): $OUT"
 fi
