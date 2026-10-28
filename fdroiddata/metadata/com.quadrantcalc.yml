@@ -17,12 +17,14 @@ Description: |-
 
 RepoType: git
 Repo: https://github.com/stormfiber/calculator.git
-Binaries: https://github.com/stormfiber/calculator/releases/download/%v/QuadrantCalcPro-release.apk
+Binaries: 
+  https://github.com/stormfiber/calculator/releases/download/%v/QuadrantCalcPro-release.apk
 
 Builds:
-  - versionName: '1.0.0'
+  - versionName: 1.0.0
     versionCode: 10000
     commit: 1.0.0
+    output: out/QuadrantCalcPro-release.apk
     build:
       - rm -rf out && mkdir -p out
       - ANDROID_KS= ANDROID_OUT="$(pwd)/out/QuadrantCalcPro-release.apk" ./android/build.sh
@@ -39,5 +41,5 @@ MaintainerNotes: |-
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: '1.0.0'
+CurrentVersion: 1.0.0
 CurrentVersionCode: 10000
