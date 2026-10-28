@@ -22,3 +22,8 @@ RELEASE_KEY.txt
 
 # personal audit log — never commit/push
 bugs.md
+
+# pre-signed release APK (public artifact) committed so CI can verify + attach
+# it without needing a keystore in CI (repo secrets are not delivered here)
+!releases/
+!releases/*.apk

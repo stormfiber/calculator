@@ -55,9 +55,10 @@ git push origin 1.0.0
 
 On every tag push:
 
-- **`.github/workflows/android-release.yml`** — builds the APK signed with
-  the long-lived **release keystore** (from GitHub Actions secrets), and
-  publishes a GitHub Release named `CalcPro-1.0.0` with the APK attached.
+- **`.github/workflows/android-release.yml`** — verifies the pre-signed
+  release APK committed at `releases/QuadrantCalcPro-release.apk`
+  (signature + reproducibility check), and publishes a GitHub Release named
+  `CalcPro-1.0.0` with the APK attached.
 - **`.github/workflows/pages-deploy.yml`** — (re)deploys the web app to the
   `gh-pages` branch; GitHub Pages rebuilds the live site automatically.
 
@@ -70,21 +71,25 @@ APK and the same signing key — no update conflicts.
 ### Release signing key
 
 - `android/release.keystore` (RSA-4096, 100-year, alias `quadrantcalc`)
-  signs every published APK. It is **never committed** (see `.gitignore`);
-  credentials live in the gitignored `android/RELEASE_KEY.txt`.
-- It is also stored in GitHub Actions secrets `RELEASE_KEYSTORE_B64`
-  (base64) + `RELEASE_KEYSTORE_PASS`, which `android-release.yml` uses to
-  sign. **Back up the keystore + password off-machine** — if lost, no future
+  signs the release APK **locally** before a tag is cut. It is **never
+  committed** (see `.gitignore`); credentials live in the gitignored
+  `android/RELEASE_KEY.txt`.
+- The signed APK is committed at `releases/QuadrantCalcPro-release.apk`
+  (a public artifact — only the signed binary, never the key) so CI can
+  verify and attach it without needing a keystore.
+- **Back up the keystore + password off-machine** — if lost, no future
   update can ever install over existing installs.
 
-To produce a release-signed APK locally:
+To produce a new signed APK for a release:
 
 ```
 cd android
 ANDROID_KS=$PWD/release.keystore ANDROID_KS_ALIAS=quadrantcalc \
 ANDROID_KS_PASS="$(cat .release-key-pass)" \
-ANDROID_OUT=$PWD/QuadrantCalcPro-release.apk ./build.sh
+ANDROID_OUT=../releases/QuadrantCalcPro-release.apk ./build.sh
 ```
+
+then commit `releases/QuadrantCalcPro-release.apk` and tag.
 
 ## Repository layout
 

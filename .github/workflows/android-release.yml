@@ -1,12 +1,16 @@
 name: android-release
 
 # On any tag push (e.g. 1.0.0):
-#   build the APK signed with the long-lived RELEASE keystore (repo secrets)
-#   and publish a GitHub release "CalcPro-<tag>" with the APK attached.
+#   verify the pre-signed release APK committed at releases/ (signed locally
+#   with the long-lived release keystore), check the source build still
+#   reproduces it, and publish a GitHub release "CalcPro-<tag>" with the APK.
 #
-# F-Droid main (f-droid/fdroiddata) hosts this exact release-signed APK via
-# its Binaries: URL, so installs/updates stay conflict-free across both
-# channels (same file, same signing key).
+# The APK is pre-signed locally because this environment does not deliver
+# repository secrets (keystore) to runners. The private key never lives in
+# the repo — only the public, signed artifact does.
+#
+# F-Droid main (f-droid/fdroiddata) hosts this exact APK via its Binaries:
+# URL, so installs/updates stay conflict-free across both channels.
 on:
   push:
     tags:
@@ -43,44 +47,53 @@ jobs:
           "$SDKMGR" --install "platforms;android-37.0" "build-tools;37.0.0"
           echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
 
-      - name: Restore release keystore from secrets
+      - name: Verify pre-signed release APK
         run: |
           set -eo pipefail
-          echo "diag: B64 len=${#RELEASE_KEYSTORE_B64} PASS len=${#RELEASE_KEYSTORE_PASS}"
-          if [ -z "${RELEASE_KEYSTORE_B64:-}" ] || [ -z "${RELEASE_KEYSTORE_PASS:-}" ]; then
-            echo "::error::GitHub secrets RELEASE_KEYSTORE_B64 / RELEASE_KEYSTORE_PASS are missing — refusing to publish."
-            exit 1
-          fi
-          base64 -d <<<"$RELEASE_KEYSTORE_B64" > "$RUNNER_TEMP/release.keystore"
-          keytool -list -keystore "$RUNNER_TEMP/release.keystore" -storepass "$RELEASE_KEYSTORE_PASS" | head -5
+          APK="releases/QuadrantCalcPro-release.apk"
+          [ -f "$APK" ] || { echo "::error::committed release APK missing at $APK" >&2; exit 1; }
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify -v --print-certs "$APK" | tee verify.txt
+          grep -q "CN=Quadrant Calc Pro" verify.txt \
+            || { echo "::error::release APK is not signed with the Quadrant Calc Pro release key" >&2; exit 1; }
+          echo "Release APK signature OK."
 
-      - name: Build release-signed APK
+      - name: Reproducibility check (source build matches release APK)
         run: |
           set -eo pipefail
           export ANDROID_BUILD_TOOLS="$ANDROID_HOME/build-tools/37.0.0"
           export ANDROID_JAR="$ANDROID_HOME/platforms/android-37.0/android.jar"
-          export ANDROID_KS="$RUNNER_TEMP/release.keystore"
-          export ANDROID_KS_ALIAS="quadrantcalc"
-          export ANDROID_KS_PASS="$RELEASE_KEYSTORE_PASS"
-          export ANDROID_OUT="$GITHUB_WORKSPACE/android/QuadrantCalcPro-release.apk"
+          export ANDROID_KS=""            # unsigned build; F-Droid-style
+          export ANDROID_OUT="$RUNNER_WORKSPACE/unsigned.apk"
           ./android/build.sh
+          python3 - "$RUNNER_WORKSPACE/unsigned.apk" "releases/QuadrantCalcPro-release.apk" <<'PY'
+import hashlib, sys, zipfile
 
-      - name: Verify APK signature
-        run: |
-          set -eo pipefail
-          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify -v --print-certs android/QuadrantCalcPro-release.apk
+def entries(path):
+    out = {}
+    with zipfile.ZipFile(path) as z:
+        for n in z.namelist():
+            out[n] = hashlib.sha256(z.read(n)).hexdigest()
+    return out
 
-      - name: Upload build artifact
+a, b = entries(sys.argv[1]), entries(sys.argv[2])
+if a != b:
+    only_a, only_b, diff = set(a) - set(b), set(b) - set(a), [k for k in a if a[k] != b.get(k)]
+    print(f"MISMATCH: only-source={sorted(only_a)} only-release={sorted(only_b)} differing={diff}")
+    sys.exit(1)
+print(f"Source build reproduces the release APK ({len(a)} entries identical, signature block aside).")
+PY
+
+      - name: Upload release APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: release-build
-          path: android/QuadrantCalcPro-release.apk
+          path: releases/QuadrantCalcPro-release.apk
 
   release:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Download build artifact
+      - name: Download release APK
         uses: actions/download-artifact@v4
         with:
           name: release-build
