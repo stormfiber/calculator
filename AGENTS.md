@@ -82,8 +82,20 @@ does **not** catch layout regressions; use the simulation above for that.
   fails, download that job's `tmp/com.quadrantcalc.yml` artifact and apply it
   verbatim.
 - Fork: `qasimali9263/fdroiddata`, branch `com.quadrantcalc`.
-  MR `!54799` (all 9 CI jobs green as of 2026-10-29); RFP tracking issue
-  `!4691` on `fdroid/rfp`.
+  RFP tracking issue `!4691` on `fdroid/rfp`.
+- **Status (2026-10-29): MR `!54799` CLOSED by a F-Droid maintainer (linsui):**
+  1. "Merge Request template is not followed" — the MR description must follow
+     fdroiddata's new-app template (Abstract + full Checklist + `Closes rfp#…`).
+  2. "Doesn't meet the policy that it needs to be maintained for more than
+     3 months" — our app was developed/released in the last ~48h (repo created
+     2025-09-07 but all 21 commits are from 2026-10-27+). Not appealable on
+     the facts.
+- **Resubmission plan:** keep the app actively maintained (regular releases:
+  1.0.1, 1.1, … over the next ~3 months), then open a fresh MR with:
+  template-compliant description (fdroiddata Default template), `Closes rfp#…`
+  footer, full-hash `commit:` field (done — branch metadata now uses
+  `0daa329b…`, not the tag), and all 9 CI jobs green. The branch
+  `com.quadrantcalc` on the fork is kept resubmission-ready.
 - YAML traps in F-Droid metadata:
   - a plain-scalar `build:` command containing `: ` (colon+space) is parsed as a
     mapping and mangles the command — keep `: ` and ` #` out of build lines
@@ -101,8 +113,8 @@ does **not** catch layout regressions; use the simulation above for that.
 2. Build + sign locally:
    `ANDROID_KS=android/release.keystore ANDROID_KS_ALIAS=quadrantcalc ANDROID_KS_PASS="$(cat android/.release-key-pass)" ANDROID_OUT=releases/QuadrantCalcPro-release.apk ./android/build.sh`
 3. Update `fdroiddata/metadata/com.quadrantcalc.yml`: new `Builds` entry
-   (versionName/versionCode/commit/tag) + `CurrentVersion`/`CurrentVersionCode`,
-   keeping canonical formatting.
+   (versionName/versionCode/commit = **full SHA**, never a tag) +
+   `CurrentVersion`/`CurrentVersionCode`, keeping canonical formatting.
 4. Commit APK + metadata to `main`; `git tag <ver>` and push tag → the
    `android-release` workflow verifies, reproducibility-checks, and attaches
    the asset to the GitHub release.

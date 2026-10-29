@@ -23,7 +23,7 @@ Binaries:
 Builds:
   - versionName: 1.0.0
     versionCode: 10000
-    commit: 1.0.0
+    commit: 0daa329b93c93b62a24b03fa8de3c579a7d5f718
     output: out/QuadrantCalcPro-release.apk
     build:
       - rm -rf out && mkdir -p out
